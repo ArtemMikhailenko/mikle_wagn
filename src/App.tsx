@@ -34,38 +34,45 @@ import AdminDashboard from './components/AdminDashboard';
 import mondayService from './services/mondayService';
 import makeService from './services/makeService';
 
-// Conditional Supabase import
-let supabase: any = null;
-try {
-  const supabaseModule = await import('./lib/supabase');
-  supabase = supabaseModule.supabase;
-} catch (error) {
-  console.warn('Supabase not configured, running in demo mode');
-}
-
 function App() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [supabase, setSupabase] = useState<any>(null);
+
+  useEffect(() => {
+    // Dynamic import of Supabase
+    const loadSupabase = async () => {
+      try {
+        const supabaseModule = await import('./lib/supabase');
+        setSupabase(supabaseModule.supabase);
+      } catch (error) {
+        console.warn('Supabase not configured, running in demo mode');
+        setLoading(false);
+      }
+    };
+
+    loadSupabase();
+  }, []);
 
   useEffect(() => {
     if (supabase) {
       // Get initial session
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setUser(session?.user ?? null);
+      supabase.auth.getSession().then(({ data }: { data: { session: any } }) => {
+        setUser(data.session?.user ?? null);
         setLoading(false);
       });
 
       // Listen for auth changes
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event:any, session:any) => {
         setUser(session?.user ?? null);
       });
 
       return () => subscription.unsubscribe();
-    } else {
+    } else if (supabase === null) {
       // Demo mode - no authentication
       setLoading(false);
     }
-  }, []);
+  }, [supabase]);
 
   if (loading) {
     return (
