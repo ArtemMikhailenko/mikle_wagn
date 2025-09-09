@@ -1,0 +1,459 @@
+// Прямой сервис для работы с Monday.com API без Supabase
+import { NeonDesign } from '../types/configurator';
+
+interface MondayItem {
+  id: string;
+  name: string;
+  column_values: Array<{
+    id: string;
+    text?: string;
+    value?: string;
+  }>;
+  subitems?: Array<{
+    id: string;
+    name: string;
+    column_values: Array<{
+      id: string;
+      text?: string;
+      value?: string;
+    }>;
+  }>;
+}
+
+interface MondayBoard {
+  items_page: {
+    items: MondayItem[];
+  };
+}
+
+interface MondayResponse {
+  data?: {
+    boards?: MondayBoard[];
+  };
+  errors?: Array<{
+    message: string;
+    locations?: Array<{ line: number; column: number }>;
+  }>;
+}
+
+class MondayDirectService {
+  private apiToken: string;
+  private apiUrl = 'https://api.monday.com/v2';
+  private mainBoardId = '1923600883';
+  private subtableBoardId = '1923902475';
+
+  constructor() {
+    this.apiToken = import.meta.env.VITE_MONDAY_API_TOKEN || '';
+    if (!this.apiToken) {
+      console.error('❌ Monday.com API token not found in environment variables');
+    } else {
+      console.log('✅ Monday.com API token loaded');
+    }
+  }
+
+  // Получить все проекты с Monday.com
+  async getAllProjects(): Promise<NeonDesign[]> {
+    try {
+      console.log('🔄 Fetching all projects from Monday.com...');
+      
+      const query = `
+        query {
+          boards(ids: [${this.mainBoardId}]) {
+            items_page(limit: 100) {
+              items {
+                id
+                name
+                column_values {
+                  id
+                  text
+                  value
+                }
+                subitems {
+                  id
+                  name
+                  column_values {
+                    id
+                    text
+                    value
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      console.log('📤 Sending GraphQL query:', query);
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.apiToken,
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      console.log('📥 Monday API response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ Monday API HTTP error: ${response.status} - ${response.statusText}`);
+        console.error('Error details:', errorText);
+        throw new Error(`Monday API HTTP error: ${response.statusText} (${response.status})`);
+      }
+
+      const data: MondayResponse = await response.json();
+      
+      // Отладка структуры ответа
+      console.log('📋 Monday API Full Response:', JSON.stringify(data, null, 2));
+      
+      // Проверяем на ошибки GraphQL
+      if (data.errors && data.errors.length > 0) {
+        console.error('❌ Monday GraphQL errors:', data.errors);
+        throw new Error(`Monday GraphQL error: ${data.errors[0].message}`);
+      }
+      
+      if (!data || !data.data) {
+        console.error('❌ Invalid Monday response structure - no data field');
+        return [];
+      }
+      
+      if (!data.data.boards) {
+        console.error('❌ Invalid Monday response structure - no boards field');
+        return [];
+      }
+      
+      if (data.data.boards.length === 0) {
+        console.warn('⚠️ No boards found in Monday response');
+        return [];
+      }
+      
+      const items = data.data.boards[0]?.items_page?.items || [];
+      console.log(`✅ Found ${items.length} items in Monday board ${this.mainBoardId}`);
+      
+      const converted = this.convertMondayItemsToNeonDesigns(items);
+      console.log(`✅ Converted ${converted.length} items to NeonDesign objects`);
+      
+      return converted;
+    } catch (error) {
+      console.error('❌ Error fetching projects from Monday:', error);
+      return [];
+    }
+  }
+
+  // Получить конкретный проект по ID
+  async getProjectById(projectId: string): Promise<NeonDesign | null> {
+    try {
+      console.log(`🔄 Fetching project ${projectId} from Monday.com...`);
+      
+      const query = `
+        query {
+          boards(ids: [${this.mainBoardId}]) {
+            items_page(limit: 100) {
+              items {
+                id
+                name
+                column_values {
+                  id
+                  text
+                  value
+                }
+                subitems {
+                  id
+                  name
+                  column_values {
+                    id
+                    text
+                    value
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.apiToken,
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ Monday API HTTP error: ${response.status} - ${response.statusText}`);
+        console.error('Error details:', errorText);
+        throw new Error(`Monday API HTTP error: ${response.statusText} (${response.status})`);
+      }
+
+      const data: MondayResponse = await response.json();
+      
+      // Отладка структуры ответа
+      console.log('📋 Monday API Response for project:', JSON.stringify(data, null, 2));
+      
+      // Проверяем на ошибки GraphQL
+      if (data.errors && data.errors.length > 0) {
+        console.error('❌ Monday GraphQL errors:', data.errors);
+        throw new Error(`Monday GraphQL error: ${data.errors[0].message}`);
+      }
+      
+      if (!data || !data.data || !data.data.boards || data.data.boards.length === 0) {
+        console.error('❌ Invalid Monday response structure or no boards found');
+        return null;
+      }
+      
+      const items = data.data.boards[0]?.items_page?.items || [];
+      
+      // Фильтруем по ID проекта
+      const filteredItems = items.filter(item => item.id === projectId);
+      
+      if (filteredItems.length === 0) {
+        console.warn(`⚠️ No items found for project ID: ${projectId}`);
+        return null;
+      }
+
+      const converted = this.convertMondayItemsToNeonDesigns(filteredItems);
+      return converted[0] || null;
+    } catch (error) {
+      console.error('❌ Error fetching project from Monday:', error);
+      return null;
+    }
+  }
+
+  // Получить MockUp из subtable для конкретного проекта
+  async getMockupForProject(projectId: string): Promise<string | null> {
+    try {
+      console.log(`🔄 Fetching mockup for project ${projectId} from subtable...`);
+      
+      const query = `
+        query {
+          boards(ids: [${this.subtableBoardId}]) {
+            items_page(limit: 100) {
+              items {
+                id
+                name
+                column_values {
+                  id
+                  text
+                  value
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.apiToken,
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      if (!response.ok) {
+        console.error(`❌ Monday API HTTP error: ${response.status} - ${response.statusText}`);
+        return null;
+      }
+
+      const data: MondayResponse = await response.json();
+      
+      // Проверяем на ошибки GraphQL
+      if (data.errors && data.errors.length > 0) {
+        console.error('❌ Monday GraphQL errors:', data.errors);
+        return null;
+      }
+      
+      if (!data || !data.data || !data.data.boards || data.data.boards.length === 0) {
+        console.warn('⚠️ No subtable boards found');
+        return null;
+      }
+      
+      const items = data.data.boards[0]?.items_page?.items || [];
+      
+      // Ищем item связанный с нашим проектом
+      const relatedItem = items.find((item: MondayItem) => 
+        item.name.includes(projectId) || 
+        item.column_values.some((col: any) => col.text?.includes(projectId))
+      );
+
+      if (!relatedItem) {
+        console.warn(`⚠️ No related subtable item found for project ${projectId}`);
+        return null;
+      }
+
+      // Ищем поле MockUp (file_mkq71vjr)
+      const mockupField = relatedItem.column_values.find((col: any) => col.id === 'file_mkq71vjr');
+      
+      if (!mockupField?.value) {
+        console.warn(`⚠️ No MockUp field found for project ${projectId}`);
+        return null;
+      }
+
+      try {
+        const fileData = JSON.parse(mockupField.value);
+        if (fileData.files && fileData.files.length > 0) {
+          const fileUrl = fileData.files[0].url;
+          console.log(`✅ Found MockUp URL: ${fileUrl}`);
+          // Возвращаем прокси URL для доступа к защищенному файлу
+          return this.createProxyUrl(fileUrl);
+        }
+      } catch (e) {
+        console.error('❌ Error parsing MockUp field:', e);
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Error fetching mockup from Monday:', error);
+      return null;
+    }
+  }
+
+  // Создать прокси URL для защищенных файлов Monday.com
+  private createProxyUrl(mondayUrl: string): string {
+    // Используем наш image-proxy для доступа к защищенным файлам
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const proxyUrl = `${supabaseUrl}/functions/v1/image-proxy?url=${encodeURIComponent(mondayUrl)}`;
+    console.log(`🔗 Created proxy URL: ${proxyUrl}`);
+    return proxyUrl;
+  }
+
+  // Прямой доступ к файлу Monday.com с API токеном
+  async fetchMondayFile(fileUrl: string): Promise<Blob | null> {
+    try {
+      const response = await fetch(fileUrl, {
+        headers: {
+          'Authorization': this.apiToken,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+      }
+
+      return await response.blob();
+    } catch (error) {
+      console.error('❌ Error fetching Monday file:', error);
+      return null;
+    }
+  }
+
+  // Конвертация Monday.com items в NeonDesign
+  private convertMondayItemsToNeonDesigns(items: MondayItem[]): NeonDesign[] {
+    console.log(`🔄 Converting ${items.length} Monday items to NeonDesign objects...`);
+    
+    return items.map(item => {
+      console.log(`📝 Processing item: ${item.name} (ID: ${item.id})`);
+      console.log(`📊 Column values:`, item.column_values);
+      
+      // Извлекаем данные из колонок по известным ID
+      const clientEmail = this.getColumnValue(item, 'email') || 
+                         this.getColumnValue(item, 'person') || 
+                         this.getColumnValue(item, 'dup__of_email') ||
+                         'no-email@example.com';
+      
+      const clientName = this.getColumnValue(item, 'person') || 
+                        this.getColumnValue(item, 'name') || 
+                        this.getColumnValue(item, 'dup__of_name') ||
+                        item.name || 
+                        'Unknown Client';
+      
+      const designName = item.name || 'Untitled Design';
+      
+      const notes = this.getColumnValue(item, 'long_text') || 
+                   this.getColumnValue(item, 'text') || 
+                   this.getColumnValue(item, 'notes') ||
+                   '';
+      
+      const status = this.getColumnValue(item, 'status') || 
+                    this.getColumnValue(item, 'status4') ||
+                    'draft';
+
+      console.log(`📊 Extracted data - Email: ${clientEmail}, Name: ${clientName}, Status: ${status}`);
+
+      // Базовая конфигурация неона
+      const neonDesign: NeonDesign = {
+        id: `MONDAY-${item.id}`,
+        name: designName,
+        originalWidth: 100, // cm
+        originalHeight: 30, // cm
+        elements: 1,
+        ledLength: 3.0, // meters
+        mockupUrl: '', // Будет загружено отдельно через getMockupForProject
+        description: notes || `Neon design for ${clientName}`,
+        svgContent: '', // Будет заполнено позже если нужно
+        hasCustomSvg: false,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Добавляем метаданные клиента как дополнительные свойства
+      (neonDesign as any).clientEmail = clientEmail;
+      (neonDesign as any).clientName = clientName;
+      (neonDesign as any).status = status;
+      (neonDesign as any).mondayId = item.id;
+
+      return neonDesign;
+    });
+  }
+
+  // Получить значение колонки по id
+  private getColumnValue(item: MondayItem, searchKey: string): string | null {
+    const column = item.column_values.find(col => 
+      col.id.toLowerCase().includes(searchKey.toLowerCase())
+    );
+    
+    return column?.text || column?.value || null;
+  }
+
+  // Проверить соединение с Monday.com
+  async testConnection(): Promise<boolean> {
+    try {
+      console.log('🔄 Testing Monday.com connection...');
+      
+      const query = `
+        query {
+          me {
+            id
+            name
+            email
+          }
+        }
+      `;
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.apiToken,
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      if (!response.ok) {
+        console.error(`❌ Monday API connection failed: ${response.status}`);
+        return false;
+      }
+
+      const data = await response.json();
+      
+      if (data.errors && data.errors.length > 0) {
+        console.error('❌ Monday GraphQL errors:', data.errors);
+        return false;
+      }
+
+      console.log('✅ Monday.com connection successful');
+      return true;
+    } catch (error) {
+      console.error('❌ Error testing Monday connection:', error);
+      return false;
+    }
+  }
+}
+
+export const mondayDirectService = new MondayDirectService();
+export default mondayDirectService;

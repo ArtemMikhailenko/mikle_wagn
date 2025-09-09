@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS crm_projects (
   design_name VARCHAR(255),
   svg_content TEXT,
   svg_url VARCHAR(500),
+  mockup_url VARCHAR(500),
+  mockup_content TEXT,
   notes TEXT,
   status VARCHAR(50) DEFAULT 'draft',
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -15,9 +17,10 @@ CREATE TABLE IF NOT EXISTS crm_projects (
 );
 
 -- Create index for faster lookups
-CREATE INDEX idx_crm_projects_project_id ON crm_projects(project_id);
-CREATE INDEX idx_crm_projects_email ON crm_projects(client_email);
-CREATE INDEX idx_crm_projects_status ON crm_projects(status);
+CREATE INDEX IF NOT EXISTS idx_crm_projects_project_id ON crm_projects(project_id);
+CREATE INDEX IF NOT EXISTS idx_crm_projects_email ON crm_projects(client_email);
+CREATE INDEX IF NOT EXISTS idx_crm_projects_status ON crm_projects(status);
+CREATE INDEX IF NOT EXISTS idx_crm_projects_mockup_url ON crm_projects(mockup_url);
 
 -- Create client interactions log
 CREATE TABLE IF NOT EXISTS client_interactions (
@@ -31,8 +34,8 @@ CREATE TABLE IF NOT EXISTS client_interactions (
 );
 
 -- Create index for interactions
-CREATE INDEX idx_client_interactions_project_id ON client_interactions(project_id);
-CREATE INDEX idx_client_interactions_type ON client_interactions(interaction_type);
+CREATE INDEX IF NOT EXISTS idx_client_interactions_project_id ON client_interactions(project_id);
+CREATE INDEX IF NOT EXISTS idx_client_interactions_type ON client_interactions(interaction_type);
 
 -- Insert sample CRM data
 INSERT INTO crm_projects (project_id, client_email, client_name, design_name, svg_content, status, notes) VALUES
@@ -51,18 +54,27 @@ ON CONFLICT (project_id) DO NOTHING;
 ALTER TABLE crm_projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE client_interactions ENABLE ROW LEVEL SECURITY;
 
--- Create policies
+-- Create policies (drop if exists first)
+DROP POLICY IF EXISTS "Allow anonymous read access to crm projects" ON crm_projects;
 CREATE POLICY "Allow anonymous read access to crm projects" ON crm_projects
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow service role full access to crm projects" ON crm_projects;
 CREATE POLICY "Allow service role full access to crm projects" ON crm_projects
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Allow anonymous read access to interactions" ON client_interactions;
 CREATE POLICY "Allow anonymous read access to interactions" ON client_interactions
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow anonymous insert to interactions" ON client_interactions;
 CREATE POLICY "Allow anonymous insert to interactions" ON client_interactions
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow service role full access to interactions" ON client_interactions;
 CREATE POLICY "Allow service role full access to interactions" ON client_interactions
   FOR ALL USING (auth.role() = 'service_role');
+
+-- Comment explaining the MockUp fields
+COMMENT ON COLUMN crm_projects.mockup_url IS 'URL to the MockUp image from Monday.com';
+COMMENT ON COLUMN crm_projects.mockup_content IS 'Base64 or direct content of the MockUp image';

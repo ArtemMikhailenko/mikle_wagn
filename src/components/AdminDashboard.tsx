@@ -32,6 +32,13 @@ const AdminDashboard: React.FC = () => {
       color: 'bg-green-500 hover:bg-green-600'
     },
     {
+      title: 'Discount Admin Panel',
+      description: 'Управление скидками и промокодами',
+      path: '/admin/discounts',
+      icon: DollarSign,
+      color: 'bg-emerald-500 hover:bg-emerald-600'
+    },
+    {
       title: 'Monday Test Panel',
       description: 'Тестирование интеграции с Monday.com',
       path: '/admin/monday',
@@ -44,6 +51,13 @@ const AdminDashboard: React.FC = () => {
       path: '/admin/supabase-test',
       icon: Database,
       color: 'bg-cyan-500 hover:bg-cyan-600'
+    },
+    {
+      title: 'Database Setup',
+      description: 'Настройка таблиц базы данных',
+      path: '/admin/database-setup',
+      icon: Database,
+      color: 'bg-blue-500 hover:bg-blue-600'
     },
     {
       title: 'Monday Board Analyzer',

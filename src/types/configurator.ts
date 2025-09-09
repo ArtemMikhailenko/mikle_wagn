@@ -14,6 +14,10 @@ export interface NeonDesign {
   // Client link support
   expiresAt?: string; // expiration date for client links
   createdAt?: string; // creation date
+  // Configuration from Monday.com
+  isWaterproof?: boolean; // waterproof option
+  hasUvPrint?: boolean; // UV print option
+  configText?: string; // raw configuration text from Monday.com
 }
 
 export interface PricingComponents {

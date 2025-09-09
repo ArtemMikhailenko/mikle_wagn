@@ -9,6 +9,8 @@ export interface CRMProjectData {
   designName: string;
   svgContent?: string;
   svgUrl?: string;
+  mockupUrl?: string;
+  mockupContent?: string;
   notes?: string;
   createdAt: string;
   expiresAt?: string;
@@ -253,6 +255,8 @@ class CRMService {
       designName: data.design_name,
       svgContent: data.svg_content,
       svgUrl: data.svg_url,
+      mockupUrl: data.mockup_url,
+      mockupContent: data.mockup_content,
       notes: data.notes,
       createdAt: data.created_at,
       expiresAt: data.expires_at,

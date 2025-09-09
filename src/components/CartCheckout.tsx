@@ -6,6 +6,8 @@ import { mondayService } from '../services/mondayService';
 import SVGPreview from './SVGPreview';
 import StripeProvider from './StripeProvider';
 import StripeCheckoutForm from './StripeCheckoutForm';
+import PromoCodeInput from './PromoCodeInput';
+import { DiscountApplication } from '../services/discountService';
 interface CartCheckoutProps {
   config: ConfigurationState;
   onConfigChange: (updates: Partial<ConfigurationState>) => void;
@@ -28,6 +30,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [showStripeForm, setShowStripeForm] = useState(false);
+  const [appliedDiscount, setAppliedDiscount] = useState<DiscountApplication | null>(null);
 
   // Calculate current design price even if not in signs list
   const currentDesignPrice = calculateSingleSignPrice(
@@ -91,9 +94,18 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   const additionalCosts = installation + actualShippingCost + expressProductionCost;
 
   // Calculate totals after all costs are determined
-  const subtotal = enabledSignsTotal + additionalCosts;
+  const subtotalBeforeDiscount = enabledSignsTotal + additionalCosts;
+  
+  // Apply discount if present
+  const discountAmount = appliedDiscount && appliedDiscount.isValid ? appliedDiscount.discountAmount : 0;
+  const subtotal = subtotalBeforeDiscount - discountAmount;
   const tax = subtotal * 0.19;
   const gesamtpreis = subtotal + tax;
+
+  // Handle discount application
+  const handleDiscountApplied = (discountApplication: DiscountApplication | null) => {
+    setAppliedDiscount(discountApplication);
+  };
 
   const handlePostalCodeSubmit = () => {
     if (tempPostalCode && /^\d{5}$/.test(tempPostalCode)) {
@@ -422,6 +434,19 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
               )}
               
               <div className="flex justify-between text-gray-700 border-t pt-3">
+                <span>Zwischensumme vor Rabatt:</span>
+                <span className="font-semibold">€{subtotalBeforeDiscount.toFixed(2)}</span>
+              </div>
+
+              {/* Discount Display */}
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-green-700">
+                  <span>Rabatt ({appliedDiscount?.discount.name}):</span>
+                  <span className="font-semibold">-€{discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              
+              <div className="flex justify-between text-gray-700">
                 <span>Zwischensumme:</span>
                 <span className="font-semibold">€{subtotal.toFixed(2)}</span>
               </div>
@@ -435,6 +460,14 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
                 <span>Gesamtpreis:</span>
                 <span className="text-green-600">€{gesamtpreis.toFixed(2)}</span>
               </div>
+            </div>
+
+            {/* Promo Code Input */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+              <PromoCodeInput
+                orderTotal={subtotalBeforeDiscount}
+                onDiscountApplied={handleDiscountApplied}
+              />
             </div>
 
             {/* Checkout Buttons */}

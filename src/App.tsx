@@ -23,16 +23,21 @@ import NeonMockupStage from './components/NeonMockupStage';
 import { ShoppingCart, X, ArrowLeft, ChevronLeft, ChevronRight, Settings, FileText, Ruler, Shield, Truck, Wrench, MapPin, Info, Scissors, Palette } from 'lucide-react';
 import { Edit3 } from 'lucide-react';
 import ShippingCalculationPage from './components/ShippingCalculationPage';
-import SimpleClientView from './components/SimpleClientView';
 import MondayTestPanel from './components/MondayTestPanel';
+import MondayConnectionTest from './components/MondayConnectionTest';
 import PricingTestPage from './components/PricingTestPage';
 import CRMAdminPanel from './components/CRMAdminPanel';
+import DirectCRMAdminPanel from './components/DirectCRMAdminPanel';
 import PricingAdminPanel from './components/PricingAdminPanel';
+import DiscountAdminPanel from './components/DiscountAdminPanel';
+import DatabaseSetup from './components/DatabaseSetup';
 import SupabaseConnectionTest from './components/SupabaseConnectionTest';
 import MondayBoardAnalyzer from './components/MondayBoardAnalyzer';
 import AdminDashboard from './components/AdminDashboard';
 import mondayService from './services/mondayService';
 import makeService from './services/makeService';
+import ClientView from './components/ClientViewDirect';
+import DebugProject from './components/DebugProject';
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -99,16 +104,21 @@ function App() {
         <Route path="/impressum" element={<ImpressumPage />} />
         {/* Admin Dashboard */}
         <Route path="/admin" element={<AdminDashboard />} />
-        {/* Admin panel for Make integration */}
-        <Route path="/admin/crm" element={<CRMAdminPanel />} />
+        {/* Admin panel for Direct Monday.com CRM */}
+        <Route path="/admin/crm" element={<DirectCRMAdminPanel />} />
+        <Route path="/admin/crm-old" element={<CRMAdminPanel />} />
         <Route path="/admin/monday" element={<MondayTestPanel />} />
+        <Route path="/admin/monday-connection" element={<MondayConnectionTest />} />
         <Route path="/admin/pricing" element={<PricingAdminPanel />} />
+        <Route path="/admin/discounts" element={<DiscountAdminPanel />} />
+        <Route path="/admin/database-setup" element={<DatabaseSetup />} />
         <Route path="/admin/supabase-test" element={<SupabaseConnectionTest />} />
         <Route path="/admin/board-analyzer" element={<MondayBoardAnalyzer />} />
         <Route path="/test/pricing" element={<PricingTestPage />} />
         <Route path="/test/stripe" element={<StripeTestPage />} />
         {/* Client view for CRM links */}
-        <Route path="/client/:projectId" element={<SimpleClientView />} />
+        <Route path="/client/:projectId" element={<ClientView />} />
+        <Route path="/debug/:projectId" element={<DebugProject />} />
         <Route path="/" element={<NeonConfiguratorApp />} />
       </Routes>
     </Router>

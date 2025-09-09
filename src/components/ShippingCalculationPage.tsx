@@ -6,6 +6,8 @@ import { mondayService } from '../services/mondayService';
 import SVGPreview from './SVGPreview';
 import StripeProvider from './StripeProvider';
 import StripeCheckoutForm from './StripeCheckoutForm';
+import PromoCodeInput from './PromoCodeInput';
+import { DiscountApplication } from '../services/discountService';
 
 interface ShippingCalculationPageProps {
   config: ConfigurationState;
@@ -25,6 +27,7 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
   const [tempPostalCode, setTempPostalCode] = useState(config.customerPostalCode || '');
   const [showStripeForm, setShowStripeForm] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [appliedDiscount, setAppliedDiscount] = useState<DiscountApplication | null>(null);
 
   // Calculate individual sign prices
   const signPrices = config.signs?.map(sign => ({
@@ -114,9 +117,18 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
   const expressProductionCost = 0; // Now included in individual sign prices
 
   const additionalCosts = installation + actualShippingCost + expressProductionCost;
-  const subtotal = enabledSignsTotal + additionalCosts;
+  const subtotalBeforeDiscount = enabledSignsTotal + additionalCosts;
+  
+  // Apply discount if present
+  const discountAmount = appliedDiscount && appliedDiscount.isValid ? appliedDiscount.discountAmount : 0;
+  const subtotal = subtotalBeforeDiscount - discountAmount;
   const tax = subtotal * 0.19;
   const total = subtotal + tax;
+
+  // Handle discount application
+  const handleDiscountApplied = (discountApplication: DiscountApplication | null) => {
+    setAppliedDiscount(discountApplication);
+  };
 
   // Check if buttons should be disabled
   const shouldDisableButtons = longestSide > 239 && (!config.customerPostalCode || !/^\d{5}$/.test(config.customerPostalCode));
@@ -473,7 +485,7 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                 <div className="lg:col-span-1">
                   <div className="space-y-3 mb-6 border-t pt-4">
                     <h3 className="font-semibold text-gray-800 mb-3">Preisübersicht</h3>
-                    <div className="flex justify-between text-gray-700">
+                                        <div className="flex justify-between text-gray-700">
                       <span>Schilder ({signPrices.filter(s => s.isEnabled).length}):</span>
                       <span className="font-semibold">€{enabledSignsTotal.toFixed(2)}</span>
                     </div>
@@ -486,6 +498,19 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                     )}
                     
                     <div className="flex justify-between text-gray-700 border-t pt-3">
+                      <span>Zwischensumme vor Rabatt:</span>
+                      <span className="font-semibold">€{subtotalBeforeDiscount.toFixed(2)}</span>
+                    </div>
+
+                    {/* Discount Display */}
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-green-700">
+                        <span>Rabatt ({appliedDiscount?.discount.name}):</span>
+                        <span className="font-semibold">-€{discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-between text-gray-700">
                       <span>Zwischensumme:</span>
                       <span className="font-semibold">€{subtotal.toFixed(2)}</span>
                     </div>
@@ -504,6 +529,14 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
 
                 {/* Right Column - Action Buttons */}
                 <div className="lg:col-span-1">
+                  {/* Promo Code Input */}
+                  <div className="mb-4 p-4 bg-gray-50 rounded-lg border">
+                    <PromoCodeInput
+                      orderTotal={subtotalBeforeDiscount}
+                      onDiscountApplied={handleDiscountApplied}
+                    />
+                  </div>
+
                   {/* Kompakte Checkbox-Bestätigung */}
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
                     <label className="flex items-start space-x-2 cursor-pointer">
