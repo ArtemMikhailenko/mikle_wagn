@@ -36,7 +36,7 @@ import MondayBoardAnalyzer from './components/MondayBoardAnalyzer';
 import AdminDashboard from './components/AdminDashboard';
 import mondayService from './services/mondayService';
 import makeService from './services/makeService';
-import ClientView from './components/ClientViewDirect';
+import ClientViewFullConfigurator from './components/ClientViewFullConfigurator';
 import DebugProject from './components/DebugProject';
 
 function App() {
@@ -117,7 +117,7 @@ function App() {
         <Route path="/test/pricing" element={<PricingTestPage />} />
         <Route path="/test/stripe" element={<StripeTestPage />} />
         {/* Client view for CRM links */}
-        <Route path="/client/:projectId" element={<ClientView />} />
+        <Route path="/client/:projectId" element={<ClientViewFullConfigurator />} />
         <Route path="/debug/:projectId" element={<DebugProject />} />
         <Route path="/" element={<NeonConfiguratorApp />} />
       </Routes>
