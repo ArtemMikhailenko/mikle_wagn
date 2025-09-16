@@ -14,6 +14,7 @@ type NeonMockupStageProps = {
   onSvgUpload?: (svgContent: string | null) => void; // Callback für SVG Upload
   currentSvgContent?: string | null; // Aktueller SVG Content für diesen Design
   svgImageUrl?: string; // SVG URL как изображение (fallback для mockup)
+  hideSettingsButton?: boolean; // Скрыть кнопку настроек (шестеренку)
 };
 
 // Reale Wandbreiten für jede Szene in cm
@@ -89,7 +90,8 @@ function sanitize(svg:SVGSVGElement){
 const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   lengthCm, waterproof, neonOn, uvOn,
   bgBrightness, neonIntensity,
-  selectedBackground, customMockupUrl, onBackgroundChange, onWaterproofChange, onSvgUpload, currentSvgContent, svgImageUrl
+  selectedBackground, customMockupUrl, onBackgroundChange, onWaterproofChange, onSvgUpload, currentSvgContent, svgImageUrl,
+  hideSettingsButton = false
 }) => {
   const planeRef = useRef<HTMLDivElement>(null);
   const svgRef   = useRef<SVGSVGElement|null>(null);
@@ -113,7 +115,10 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   const [modalZoom, setModalZoom] = useState(1.0);
   const [modalDrag, setModalDrag] = useState({dx: 0, dy: 0});
   
-  useEffect(()=>{ setLocalNeonOn(neonOn); }, [neonOn]);
+  useEffect(()=>{ 
+    console.log('🔄 NeonMockupStage: External neonOn changed to:', neonOn);
+    setLocalNeonOn(neonOn); 
+  }, [neonOn]);
 
   // Effect для загрузки SVG при смене дизайна
   useEffect(() => {
@@ -555,7 +560,10 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   useEffect(()=>{ if(svgRef.current) setPlaneSizeByCm(lengthCm); }, [lengthCm]);
   useEffect(()=>{ if(svgRef.current) setPlaneSizeByCm(lengthCm); }, [dynamicPxPerCm]); // Re-scale when scene changes
   useEffect(()=>{ if(svgRef.current) processUV(svgRef.current, uvOn); }, [uvOn]);
-  useEffect(()=>{ toggleNeon(svgRef.current, localNeonOn, neonIntensity ?? localNeon); }, [localNeonOn, neonIntensity, localNeon, setName]);
+  useEffect(()=>{ 
+    console.log('⚡ NeonMockupStage: Applying neon effect, localNeonOn:', localNeonOn, 'intensity:', neonIntensity ?? localNeon);
+    toggleNeon(svgRef.current, localNeonOn, neonIntensity ?? localNeon); 
+  }, [localNeonOn, neonIntensity, localNeon, setName]);
   useEffect(()=>{ // Drag → Transform anpassen
     planeRef.current && (planeRef.current.style.transform =
       `translate(-50%,-130%) translate(${drag.dx.toFixed(2)}px, ${drag.dy.toFixed(2)}px) scale(1)`);
@@ -866,6 +874,7 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
               : 'bg-white/90 text-gray-700 border-gray-200 hover:bg-white'
           }`}
           title="Weitere Optionen"
+          style={{ display: hideSettingsButton ? 'none' : 'flex' }}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />

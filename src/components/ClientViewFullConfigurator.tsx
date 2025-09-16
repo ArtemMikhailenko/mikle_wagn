@@ -22,6 +22,7 @@ export default function ClientViewFullConfigurator() {
     customWidth: 200,
     calculatedHeight: 100,
     isWaterproof: false,
+    isTwoPart: false,
     hasUvPrint: true,
     hasHangingSystem: false,
     includesInstallation: false,
@@ -38,6 +39,25 @@ export default function ClientViewFullConfigurator() {
   // Client-specific states
   const [projectData, setProjectData] = useState<any>(null);
   const [isLoadingProject, setIsLoadingProject] = useState(true);
+  const [isDesignApproved, setIsDesignApproved] = useState(false);
+
+  // DEBUG: Test if component renders
+  useEffect(() => {
+    console.log('✅ ClientViewFullConfigurator loaded, isDesignApproved:', isDesignApproved);
+  }, [isDesignApproved]);
+
+  // DEBUG: Check all important states
+  useEffect(() => {
+    console.log('🔍 Component State Debug:', {
+      currentStep,
+      showShippingPage,
+      isLoadingProject,
+      isLoadingDesigns,
+      isDesignApproved,
+      projectData: !!projectData,
+      projectId
+    });
+  }, [currentStep, showShippingPage, isLoadingProject, isLoadingDesigns, isDesignApproved, projectData, projectId]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -369,7 +389,10 @@ export default function ClientViewFullConfigurator() {
                   <div className="flex items-center justify-between sm:justify-start space-x-3 p-2 bg-gray-50 rounded-lg">
                     <span className="text-sm font-medium text-gray-700">Neon</span>
                     <button
-                      onClick={() => setNeonOn(!neonOn)}
+                      onClick={() => {
+                        console.log('🔵 ClientViewFullConfigurator: Toggling neon from', neonOn, 'to', !neonOn);
+                        setNeonOn(!neonOn);
+                      }}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                         neonOn ? 'bg-blue-600' : 'bg-gray-300'
                       }`}
@@ -401,6 +424,7 @@ export default function ClientViewFullConfigurator() {
                   uvOn={config.hasUvPrint || false}
                   customMockupUrl={previewContent?.type === 'mockup' ? previewContent.url : undefined}
                   svgImageUrl={previewContent?.type === 'svg' ? previewContent.url : undefined}
+                  hideSettingsButton={true}
                 />
                 
                 {/* Overlay Info */}
@@ -499,18 +523,18 @@ export default function ClientViewFullConfigurator() {
                 </div>
                 
                 {/* Action Buttons - Responsive */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
                   {/* Add Button */}
                   {isAddingToCart ? (
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-3 sm:p-4">
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg sm:rounded-xl p-2 sm:p-3 lg:p-4 min-h-[44px] flex items-center justify-center">
                       <div className="flex items-center space-x-2 animate-pulse justify-center">
                         <div className="bg-green-500 rounded-full p-0.5">
-                          <svg className="w-4 h-4 text-white animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                         </div>
-                        <span className="text-green-800 font-bold text-sm sm:text-base animate-pulse">Im Warenkorb</span>
-                        <div className="text-sm sm:text-base font-bold text-green-800">
+                        <span className="text-green-800 font-bold text-xs sm:text-sm lg:text-base animate-pulse">Im Warenkorb</span>
+                        <div className="text-xs sm:text-sm lg:text-base font-bold text-green-800">
                           €{currentDesignPrice.toFixed(2)}
                         </div>
                       </div>
@@ -518,39 +542,45 @@ export default function ClientViewFullConfigurator() {
                   ) : (
                     <button
                       onClick={() => handleToggleDesign(config.selectedDesign, true)}
-                      className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-xl hover:shadow-2xl flex items-center justify-center space-x-2 sm:space-x-3 text-sm sm:text-lg group relative overflow-hidden z-20"
+                      className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 active:from-green-700 active:to-emerald-800 text-white font-bold py-2.5 sm:py-3 lg:py-4 px-3 sm:px-4 lg:px-6 rounded-lg sm:rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg sm:shadow-xl hover:shadow-xl sm:hover:shadow-2xl flex items-center justify-center space-x-1.5 sm:space-x-2 lg:space-x-3 text-xs sm:text-sm lg:text-lg group relative overflow-hidden z-20 min-h-[44px] touch-manipulation"
                     >
                       {/* Glowing background animation */}
                       <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300 animate-pulse"></div>
                       
-                      <div className="bg-white/20 rounded-full p-0.5">
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="bg-white/20 rounded-full p-0.5 flex-shrink-0">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                       </div>
-                      <span className="font-bold relative z-10">{currentDesignCount > 0 ? 'Weitere hinzufügen' : 'Hinzufügen'}</span>
-                      <div className="bg-white/20 rounded-full px-2 sm:px-3 py-1 text-sm sm:text-base font-bold">
+                      <span className="font-bold relative z-10 text-center flex-1 sm:flex-initial">
+                        <span className="hidden sm:inline">{currentDesignCount > 0 ? 'Weitere hinzufügen' : 'Hinzufügen'}</span>
+                        <span className="sm:hidden">Hinzufügen</span>
+                      </span>
+                      <div className="bg-white/20 rounded-full px-1.5 sm:px-2 lg:px-3 py-0.5 sm:py-1 text-xs sm:text-sm lg:text-base font-bold flex-shrink-0">
                         €{currentDesignPrice.toFixed(2)}
                       </div>
                     </button>
                   )}
                   
                   {/* Shipping Button */}
-                  <div className="relative">
+                  <div className="relative w-full sm:w-auto">
                     <button 
                       onClick={handleShowShippingPage}
-                      className="relative bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-3 sm:py-4 px-4 sm:px-8 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-xl hover:shadow-2xl flex items-center justify-center space-x-2 sm:space-x-3 font-bold text-sm sm:text-lg group z-10 overflow-hidden w-full sm:w-auto"
+                      className="relative w-full sm:w-auto bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 active:from-blue-700 active:to-indigo-800 text-white py-2.5 sm:py-3 lg:py-4 px-3 sm:px-4 lg:px-8 rounded-lg sm:rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg sm:shadow-xl hover:shadow-xl sm:hover:shadow-2xl flex items-center justify-center space-x-1.5 sm:space-x-2 lg:space-x-3 font-bold text-xs sm:text-sm lg:text-lg group z-10 overflow-hidden min-h-[44px] touch-manipulation"
                     >
                       {/* Sliding background animation */}
                       <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
                       
-                      <Truck className="h-5 w-5 sm:h-6 sm:w-6 relative z-10 group-hover:animate-bounce" />
-                      <span className="font-bold relative z-10">Versand berechnen</span>
+                      <Truck className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 relative z-10 group-hover:animate-bounce flex-shrink-0" />
+                      <span className="font-bold relative z-10 text-center">
+                        <span className="hidden sm:inline">Versand berechnen</span>
+                        <span className="sm:hidden">Versand</span>
+                      </span>
                     </button>
                     
                     {/* Animated Cart Counter Badge */}
                     {cartItemCount > 0 && (
-                      <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 bg-red-500 text-white text-xs sm:text-sm font-bold rounded-full h-6 w-6 sm:h-8 sm:w-8 flex items-center justify-center animate-bounce shadow-xl border-2 sm:border-3 border-white z-30">
+                      <div className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 lg:-top-3 lg:-right-3 bg-red-500 text-white text-xs sm:text-sm font-bold rounded-full h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 flex items-center justify-center animate-bounce shadow-xl border-2 lg:border-3 border-white z-30 min-w-[20px] sm:min-w-[24px] lg:min-w-[32px]">
                         {cartItemCount}
                       </div>
                     )}
@@ -711,38 +741,10 @@ export default function ClientViewFullConfigurator() {
               </div>
             </div>
           </div>
-
-          {/* Action Buttons */}
-          <div className="text-center">
-            <button
-              onClick={() => console.log('Design approved by client')}
-              className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-xl"
-            >
-              Design bestätigen & Bestellung aufgeben
-            </button>
-          </div>
         </div>
 
-        {/* Mobile Bottom Bar */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm text-gray-600">
-                {cartItemCount} Artikel • €{currentDesignPrice.toFixed(2)}
-              </div>
-              <div className="text-lg font-bold text-green-600">
-                Gesamt: €{(currentDesignPrice * 1.19).toFixed(2)}
-              </div>
-            </div>
-            <button
-              onClick={handleGoToCart}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold"
-            >
-              Warenkorb
-            </button>
-          </div>
-        </div>
-
+        {/* 4. Design Approval and Order Section */}
+      
         <div className="mt-8 mb-4">
           <MondayStatus />
         </div>

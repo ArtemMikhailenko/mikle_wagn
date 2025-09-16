@@ -133,6 +133,16 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
   // Check if buttons should be disabled
   const shouldDisableButtons = longestSide > 239 && (!config.customerPostalCode || !/^\d{5}$/.test(config.customerPostalCode));
   
+  // Debug logging
+  console.log('ShippingCalculationPage Debug:', {
+    longestSide,
+    customerPostalCode: config.customerPostalCode,
+    isValidPostalCode: config.customerPostalCode && /^\d{5}$/.test(config.customerPostalCode),
+    shouldDisableButtons,
+    isConfirmed,
+    finalButtonDisabled: shouldDisableButtons || !isConfirmed
+  });
+  
   // Stripe payment handlers
   const handleStripePaymentSuccess = (paymentIntent: any) => {
     console.log('Payment successful:', paymentIntent);
@@ -188,150 +198,265 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
         <div className="space-y-6">
           {/* Top Module - Übersicht (Overview) - Full Width */}
           <div className="w-full">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center space-x-3 mb-6">
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 lg:p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-3 mb-4 sm:mb-6">
                 <div className="bg-blue-600 rounded-lg p-2">
-                  <Package className="h-6 w-6 text-white" />
+                  <Package className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">Übersicht</h2>
-                <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-800">Übersicht</h2>
+                <div className="bg-blue-100 text-blue-800 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium">
                   {signPrices.filter(s => s.isEnabled).length} Artikel
                 </div>
               </div>
 
               {/* Compact Sign List */}
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {signPrices.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Package className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                    <p>Keine Schilder ausgewählt</p>
+                  <div className="text-center py-6 sm:py-8 text-gray-500">
+                    <Package className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-3 sm:mb-4" />
+                    <p className="text-sm sm:text-base">Keine Schilder ausgewählt</p>
                   </div>
                 ) : (
                   signPrices.map((sign, index) => (
                     <div
                       key={sign.id}
-                      className={`border rounded-lg p-3 transition-all duration-300 ${
+                      className={`border rounded-lg p-2 sm:p-3 transition-all duration-300 ${
                         sign.isEnabled
                           ? 'border-green-200 bg-green-50'
                           : 'border-gray-200 bg-gray-50 opacity-75'
                       }`}
                     >
-                      {/* Ultra-Compact Row Layout */}
-                      <div className="flex items-center space-x-2">
-                        {/* Design Image - Smaller */}
-                        <SVGPreview 
-                          design={sign.design}
-                          width={sign.width}
-                          height={sign.height}
-                          className="w-10 h-10"
-                          uploadedSvgContent={sign.uploadedSvgContent}
-                        />
-
-                        {/* Sign Info - Ultra-Compact */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="font-medium text-gray-800 text-xs truncate">Design #{index + 1}</h3>
-                            </div>
-                            
-                            {/* Size Adjustment Controls - moved up */}
-                            <div className="flex items-center space-x-2">
-                              <span className="text-xs text-gray-600 font-medium">Breite:</span>
-                              <button
-                                onClick={() => handleSignUpdate(sign.id, { 
-                                  width: Math.max(20, sign.width - 10),
-                                  height: calculateProportionalHeight(sign.design.originalWidth, sign.design.originalHeight, Math.max(20, sign.width - 10))
-                                })}
-                                className="w-6 h-6 bg-gray-200 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded flex items-center justify-center transition-colors"
-                              >
-                                −
-                              </button>
-                              <input
-                                type="number"
-                                value={sign.width}
-                                onChange={(e) => {
-                                  const newWidth = Number(e.target.value);
-                                  const maxWidth = sign.isTwoPart ? 1000 : 300;
-                                  if (newWidth >= 20 && newWidth <= maxWidth) {
-                                    const newHeight = calculateProportionalHeight(sign.design.originalWidth, sign.design.originalHeight, newWidth);
-                                    if (newHeight <= 200) {
-                                    handleSignUpdate(sign.id, { 
-                                      width: newWidth,
-                                        height: newHeight
-                                    });
-                                    }
-                                  }
-                                }}
-                                className="w-12 h-6 text-xs text-center border border-gray-300 rounded bg-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-                                min="20"
-                                max={sign.isTwoPart ? "1000" : "300"}
-                              />
-                              <button
-                                onClick={() => handleSignUpdate(sign.id, { 
-                                  width: Math.min(sign.isTwoPart ? 1000 : 300, sign.width + 10),
-                                  height: calculateProportionalHeight(sign.design.originalWidth, sign.design.originalHeight, Math.min(sign.isTwoPart ? 1000 : 300, sign.width + 10))
-                                })}
-                                className="w-6 h-6 bg-gray-200 hover:bg-green-100 text-gray-600 hover:text-green-600 rounded flex items-center justify-center transition-colors"
-                              >
-                                +
-                              </button>
-                              <span className="text-xs text-gray-500">cm</span>
-                              
-                              {/* Height Display */}
-                              <div className="flex items-center space-x-1 ml-2 px-2 py-1 bg-gray-100 rounded">
-                                <span className="text-xs text-gray-600 font-medium">Höhe:</span>
-                                <span className="text-xs font-bold text-gray-800">{sign.height}</span>
-                                <span className="text-xs text-gray-500">cm</span>
-                              </div>
-                            </div>
+                      {/* Mobile-First Layout */}
+                      <div className="space-y-2 sm:space-y-0">
+                        {/* Top Row - Image and Title (Mobile) */}
+                        <div className="flex items-center space-x-2 sm:hidden">
+                          <SVGPreview 
+                            design={sign.design}
+                            width={sign.width}
+                            height={sign.height}
+                            className="w-8 h-8 flex-shrink-0"
+                            uploadedSvgContent={sign.uploadedSvgContent}
+                          />
+                          <h3 className="font-medium text-gray-800 text-sm flex-1">Design #{index + 1}</h3>
+                          <div className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">
+                            €{sign.price.toFixed(2)}
                           </div>
                         </div>
 
-                        {/* Compact Options - Only Icons */}
-                        <div className="flex items-center space-x-1 ml-2">
-                          {/* Price - aligned with buttons */}
-                          <div className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold mr-2">
+                        {/* Desktop Layout - Single Row */}
+                        <div className="hidden sm:flex sm:items-center sm:space-x-2">
+                          <SVGPreview 
+                            design={sign.design}
+                            width={sign.width}
+                            height={sign.height}
+                            className="w-10 h-10 flex-shrink-0"
+                            uploadedSvgContent={sign.uploadedSvgContent}
+                          />
+
+                          {/* Sign Info - Desktop */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-gray-800 text-xs truncate">Design #{index + 1}</h3>
+                          </div>
+
+                          {/* Size Controls - Desktop */}
+                          <div className="hidden lg:flex items-center space-x-2">
+                            <span className="text-xs text-gray-600 font-medium">Breite:</span>
+                            <button
+                              onClick={() => handleSignUpdate(sign.id, { 
+                                width: Math.max(20, sign.width - 10),
+                                height: calculateProportionalHeight(sign.design.originalWidth, sign.design.originalHeight, Math.max(20, sign.width - 10))
+                              })}
+                              className="w-6 h-6 bg-gray-200 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded flex items-center justify-center transition-colors touch-manipulation"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              value={sign.width}
+                              onChange={(e) => {
+                                const newWidth = Number(e.target.value);
+                                const maxWidth = sign.isTwoPart ? 1000 : 300;
+                                if (newWidth >= 20 && newWidth <= maxWidth) {
+                                  const newHeight = calculateProportionalHeight(sign.design.originalWidth, sign.design.originalHeight, newWidth);
+                                  if (newHeight <= 200) {
+                                  handleSignUpdate(sign.id, { 
+                                    width: newWidth,
+                                      height: newHeight
+                                  });
+                                  }
+                                }
+                              }}
+                              className="w-12 h-6 text-xs text-center border border-gray-300 rounded bg-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                              min="20"
+                              max={sign.isTwoPart ? "1000" : "300"}
+                            />
+                            <button
+                              onClick={() => handleSignUpdate(sign.id, { 
+                                width: Math.min(sign.isTwoPart ? 1000 : 300, sign.width + 10),
+                                height: calculateProportionalHeight(sign.design.originalWidth, sign.design.originalHeight, Math.min(sign.isTwoPart ? 1000 : 300, sign.width + 10))
+                              })}
+                              className="w-6 h-6 bg-gray-200 hover:bg-green-100 text-gray-600 hover:text-green-600 rounded flex items-center justify-center transition-colors touch-manipulation"
+                            >
+                              +
+                            </button>
+                            <span className="text-xs text-gray-500">cm</span>
+                            
+                            {/* Height Display */}
+                            <div className="flex items-center space-x-1 ml-2 px-2 py-1 bg-gray-100 rounded">
+                              <span className="text-xs text-gray-600 font-medium">Höhe:</span>
+                              <span className="text-xs font-bold text-gray-800">{sign.height}</span>
+                              <span className="text-xs text-gray-500">cm</span>
+                            </div>
+                          </div>
+
+                          {/* Price - Desktop */}
+                          <div className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">
                             €{sign.price.toFixed(2)}
                           </div>
-                          
-                          <button
-                            onClick={() => handleSignUpdate(sign.id, { isWaterproof: !sign.isWaterproof })}
-                            className={`p-1 rounded ${
-                              sign.isWaterproof ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                            title="Wasserdicht"
-                          >
-                            <Shield className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleSignUpdate(sign.id, { hasUvPrint: !sign.hasUvPrint })}
-                            className={`p-1 rounded ${
-                              sign.hasUvPrint ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                            title="UV-Druck"
-                          >
-                            <Palette className="h-3.5 w-3.5" />
-                          </button>
 
-                          {/* Toggle & Remove */}
-                          <button
-                            onClick={() => onSignToggle(sign.id, !sign.isEnabled)}
-                            className={`p-1 rounded ml-1 ${
-                              sign.isEnabled
-                                ? 'bg-green-500 text-white hover:bg-green-600'
-                                : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                            }`}
-                            title={sign.isEnabled ? 'Ausblenden' : 'Einblenden'}
-                          >
-                            {sign.isEnabled ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                          </button>
-                          <button
-                            onClick={() => onRemoveSign(sign.id)}
-                            className="p-1 text-red-600 hover:text-white hover:bg-red-500 rounded transition-colors"
-                            title="Entfernen"
-                          >
-                            <Minus className="h-3.5 w-3.5" />
-                          </button>
+                          {/* Action Buttons - Desktop */}
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => handleSignUpdate(sign.id, { isWaterproof: !sign.isWaterproof })}
+                              className={`p-1 rounded transition-colors touch-manipulation ${
+                                sign.isWaterproof ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                              title="Wasserdicht"
+                            >
+                              <Shield className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleSignUpdate(sign.id, { hasUvPrint: !sign.hasUvPrint })}
+                              className={`p-1 rounded transition-colors touch-manipulation ${
+                                sign.hasUvPrint ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                              title="UV-Druck"
+                            >
+                              <Palette className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => onSignToggle(sign.id, !sign.isEnabled)}
+                              className={`p-1 rounded transition-colors touch-manipulation ${
+                                sign.isEnabled
+                                  ? 'bg-green-500 text-white hover:bg-green-600'
+                                  : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                              }`}
+                              title={sign.isEnabled ? 'Ausblenden' : 'Einblenden'}
+                            >
+                              {sign.isEnabled ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                            </button>
+                            <button
+                              onClick={() => onRemoveSign(sign.id)}
+                              className="p-1 text-red-600 hover:text-white hover:bg-red-500 rounded transition-colors touch-manipulation"
+                              title="Entfernen"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Mobile Size Controls */}
+                        <div className="flex flex-col space-y-2 sm:hidden">
+                          <div className="grid grid-cols-2 gap-2">
+                            {/* Width Control */}
+                            <div className="flex flex-col space-y-1">
+                              <span className="text-xs text-gray-600 font-medium">Breite:</span>
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  onClick={() => handleSignUpdate(sign.id, { 
+                                    width: Math.max(20, sign.width - 10),
+                                    height: calculateProportionalHeight(sign.design.originalWidth, sign.design.originalHeight, Math.max(20, sign.width - 10))
+                                  })}
+                                  className="w-8 h-8 bg-gray-200 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded flex items-center justify-center transition-colors touch-manipulation"
+                                >
+                                  −
+                                </button>
+                                <input
+                                  type="number"
+                                  value={sign.width}
+                                  onChange={(e) => {
+                                    const newWidth = Number(e.target.value);
+                                    const maxWidth = sign.isTwoPart ? 1000 : 300;
+                                    if (newWidth >= 20 && newWidth <= maxWidth) {
+                                      const newHeight = calculateProportionalHeight(sign.design.originalWidth, sign.design.originalHeight, newWidth);
+                                      if (newHeight <= 200) {
+                                      handleSignUpdate(sign.id, { 
+                                        width: newWidth,
+                                          height: newHeight
+                                      });
+                                      }
+                                    }
+                                  }}
+                                  className="flex-1 h-8 text-sm text-center border border-gray-300 rounded bg-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                                  min="20"
+                                  max={sign.isTwoPart ? "1000" : "300"}
+                                />
+                                <button
+                                  onClick={() => handleSignUpdate(sign.id, { 
+                                    width: Math.min(sign.isTwoPart ? 1000 : 300, sign.width + 10),
+                                    height: calculateProportionalHeight(sign.design.originalWidth, sign.design.originalHeight, Math.min(sign.isTwoPart ? 1000 : 300, sign.width + 10))
+                                  })}
+                                  className="w-8 h-8 bg-gray-200 hover:bg-green-100 text-gray-600 hover:text-green-600 rounded flex items-center justify-center transition-colors touch-manipulation"
+                                >
+                                  +
+                                </button>
+                                <span className="text-xs text-gray-500">cm</span>
+                              </div>
+                            </div>
+
+                            {/* Height Display */}
+                            <div className="flex flex-col space-y-1">
+                              <span className="text-xs text-gray-600 font-medium">Höhe:</span>
+                              <div className="h-8 px-2 py-1 bg-gray-100 rounded flex items-center justify-center">
+                                <span className="text-sm font-bold text-gray-800">{sign.height} cm</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Mobile Action Buttons */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => handleSignUpdate(sign.id, { isWaterproof: !sign.isWaterproof })}
+                                className={`p-2 rounded transition-colors touch-manipulation ${
+                                  sign.isWaterproof ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                                title="Wasserdicht"
+                              >
+                                <Shield className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleSignUpdate(sign.id, { hasUvPrint: !sign.hasUvPrint })}
+                                className={`p-2 rounded transition-colors touch-manipulation ${
+                                  sign.hasUvPrint ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                                title="UV-Druck"
+                              >
+                                <Palette className="h-4 w-4" />
+                              </button>
+                            </div>
+                            
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => onSignToggle(sign.id, !sign.isEnabled)}
+                                className={`p-2 rounded transition-colors touch-manipulation ${
+                                  sign.isEnabled
+                                    ? 'bg-green-500 text-white hover:bg-green-600'
+                                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                                }`}
+                                title={sign.isEnabled ? 'Ausblenden' : 'Einblenden'}
+                              >
+                                {sign.isEnabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                              </button>
+                              <button
+                                onClick={() => onRemoveSign(sign.id)}
+                                className="p-2 text-red-600 hover:text-white hover:bg-red-500 rounded transition-colors touch-manipulation"
+                                title="Entfernen"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -543,7 +668,10 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                       <input
                         type="checkbox"
                         checked={isConfirmed}
-                        onChange={(e) => setIsConfirmed(e.target.checked)}
+                        onChange={(e) => {
+                          console.log('Checkbox changed:', e.target.checked);
+                          setIsConfirmed(e.target.checked);
+                        }}
                         className="w-4 h-4 text-green-600 focus:ring-green-500 rounded mt-0.5 flex-shrink-0"
                       />
                       <div className="flex items-center space-x-1">

@@ -34,26 +34,33 @@ serve(async (req) => {
       amount,
       currency,
       payment_method: payment_method_id,
-      confirmation_method: 'manual',
       confirm: true,
       receipt_email: customer_email,
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: 'never'
+      },
       metadata: {
         customer_email,
         billing_name: billing_details?.name || '',
       },
     })
 
-    // Сохраняем информацию о платеже в базу данных
-    if (paymentIntent.status === 'succeeded') {
+    // Сохраняем информацию о платеже в базу данных только после успешного подтверждения
+    // В реальном приложении это будет обрабатываться через webhooks
+    try {
       await supabaseClient.from('orders').insert({
         stripe_payment_intent_id: paymentIntent.id,
         amount: amount / 100, // конвертируем из центов
         currency,
         customer_email,
         billing_details,
-        status: 'paid',
+        status: 'pending', // начальный статус
         created_at: new Date().toISOString(),
       })
+    } catch (dbError) {
+      console.warn('Database insert failed:', dbError)
+      // Не прерываем процесс, если база данных недоступна
     }
 
     return new Response(

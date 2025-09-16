@@ -23,7 +23,7 @@ const CustomerHeaderClient: React.FC<CustomerHeaderClientProps> = ({
     >
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-10 md:h-12">
-          {/* Logo Only */}
+          
           <div className="flex items-center">
             {customerLogo ? (
               <img
@@ -39,7 +39,7 @@ const CustomerHeaderClient: React.FC<CustomerHeaderClientProps> = ({
             )}
           </div>
 
-          {/* Customer Info - Hidden on mobile */}
+          
           <div className="hidden sm:flex items-center space-x-2 text-xs">
             {customerName && (
               <span className="text-gray-700 font-medium" style={{ opacity: 0.7 }}>
@@ -53,7 +53,7 @@ const CustomerHeaderClient: React.FC<CustomerHeaderClientProps> = ({
             )}
           </div>
 
-          {/* Security Badge */}
+          
           <div 
             className="flex items-center space-x-1 px-2 py-0.5 rounded-full"
             style={{ 
