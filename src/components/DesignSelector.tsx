@@ -120,12 +120,12 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
           <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 animate-pulse"></div>
           
           {/* SVG Preview with fallback to mockup image */}
-          <div className="max-w-full max-h-full flex items-center justify-center relative z-10">
+          <div className="max-w-full max-h-full flex items-center justify-center relative z-10 px-2 md:px-4">
             <SVGPreview
               design={selectedDesign}
               width={config.customWidth}
               height={config.calculatedHeight}
-              className="max-w-full max-h-full shadow-2xl lg:shadow-2xl border border-white/10 rounded-lg"
+              className="max-w-full max-h-full shadow-2xl lg:shadow-2xl border border-white/10 rounded-lg w-[240px] h-[160px] sm:w-[280px] sm:h-[200px] md:w-[320px] md:h-[220px] lg:w-[400px] lg:h-[300px]"
             />
           </div>
           

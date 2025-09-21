@@ -40,11 +40,11 @@ const SVGPreview: React.FC<SVGPreviewProps> = ({
       console.log('✅ Using uploaded SVG for', design.name, 'className:', className);
       return (
         <div 
-          className={`${className} bg-white border-2 border-orange-300 rounded-lg p-1 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow group relative`}
+          className={`${className} bg-white border-2 border-orange-300 rounded-lg p-1 md:p-2 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow group relative`}
           onClick={handlePreviewClick}
         >
           <div 
-            className="w-full h-full flex items-center justify-center [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto [&>svg]:object-contain"
+            className="w-full h-full flex items-center justify-center [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto [&>svg]:object-contain [&>svg]:scale-50 sm:[&>svg]:scale-60 md:[&>svg]:scale-75 lg:[&>svg]:scale-90 xl:[&>svg]:scale-100"
             style={{ maxWidth: '100%', maxHeight: '100%' }}
             dangerouslySetInnerHTML={{ __html: uploadedSvgContent }}
           />
@@ -63,11 +63,11 @@ const SVGPreview: React.FC<SVGPreviewProps> = ({
       console.log('✅ Using design.svgContent for', design.name, 'className:', className);
       return (
         <div 
-          className={`${className} bg-white border-2 border-gray-200 rounded-lg p-1 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow group relative`}
+          className={`${className} bg-white border-2 border-gray-200 rounded-lg p-1 md:p-2 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow group relative`}
           onClick={handlePreviewClick}
         >
           <div 
-            className="w-full h-full flex items-center justify-center [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto [&>svg]:object-contain"
+            className="w-full h-full flex items-center justify-center [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto [&>svg]:object-contain [&>svg]:scale-50 sm:[&>svg]:scale-60 md:[&>svg]:scale-75 lg:[&>svg]:scale-90 xl:[&>svg]:scale-100"
             style={{ maxWidth: '100%', maxHeight: '100%' }}
             dangerouslySetInnerHTML={{ __html: design.svgContent }}
           />
@@ -86,13 +86,13 @@ const SVGPreview: React.FC<SVGPreviewProps> = ({
     if (design.svgUrl) {
       return (
         <div 
-          className={`${className} bg-white border-2 border-gray-200 rounded-lg p-2 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow group relative`}
+          className={`${className} bg-white border-2 border-gray-200 rounded-lg p-1 md:p-2 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow group relative`}
           onClick={handlePreviewClick}
         >
           <object
             data={design.svgUrl}
             type="image/svg+xml"
-            className="max-w-full max-h-full w-auto h-auto"
+            className="max-w-full max-h-full w-auto h-auto scale-50 sm:scale-60 md:scale-75 lg:scale-90 xl:scale-100"
             onError={() => console.warn('Failed to load SVG from URL:', design.svgUrl)}
           >
             {/* Fallback to mockup image if SVG fails to load */}
@@ -116,13 +116,13 @@ const SVGPreview: React.FC<SVGPreviewProps> = ({
     console.log('⚠️ Using fallback mockup image for', design.name, 'URL:', design.mockupUrl);
     return (
       <div 
-        className={`${className} bg-white border-2 border-gray-200 rounded-lg p-2 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow group relative`}
+        className={`${className} bg-white border-2 border-gray-200 rounded-lg p-1 md:p-2 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow group relative`}
         onClick={handlePreviewClick}
       >
         <img
           src={design.mockupUrl}
           alt={design.name}
-          className="max-w-full max-h-full object-contain rounded"
+          className="max-w-full max-h-full object-contain rounded scale-50 sm:scale-60 md:scale-75 lg:scale-90 xl:scale-100"
           onError={(e) => {
             console.error('❌ Failed to load mockup image:', design.mockupUrl);
             // Show placeholder

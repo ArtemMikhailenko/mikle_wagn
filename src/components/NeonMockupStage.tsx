@@ -130,8 +130,9 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
       if (svg && planeRef.current) {
         sanitize(svg); 
         ensureViewBox(svg);
-        svg.setAttribute("width","100%"); 
-        svg.setAttribute("height","100%");
+        
+        // Apply responsive sizing
+        applyResponsiveSizing(svg);
         svg.setAttribute("preserveAspectRatio","xMidYMid meet");
         planeRef.current.innerHTML = ""; 
         planeRef.current.appendChild(svg);
@@ -151,6 +152,41 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
       svgRef.current = null;
     }
   }, [currentSvgContent, uvOn, localNeonOn, neonIntensity, localNeon, lengthCm]);
+
+  // Function to apply responsive sizing to existing SVG
+  const applyResponsiveSizing = (svg: SVGSVGElement) => {
+    const isMobile = window.innerWidth < 768;
+    const isTablet = window.innerWidth >= 768 && window.innerWidth < 1024;
+    
+    if (isMobile) {
+      svg.setAttribute("width", "60%");
+      svg.setAttribute("height", "60%");
+      svg.style.maxWidth = "250px";
+      svg.style.maxHeight = "180px";
+    } else if (isTablet) {
+      svg.setAttribute("width", "80%");
+      svg.setAttribute("height", "80%");
+      svg.style.maxWidth = "350px";
+      svg.style.maxHeight = "250px";
+    } else {
+      svg.setAttribute("width", "100%");
+      svg.setAttribute("height", "100%");
+      svg.style.maxWidth = "none";
+      svg.style.maxHeight = "none";
+    }
+  };
+
+  // Handle window resize for responsive SVG
+  useEffect(() => {
+    const handleResize = () => {
+      if (svgRef.current) {
+        applyResponsiveSizing(svgRef.current);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [drag, setDrag] = useState({dx:0, dy:0});
   const [isDragging, setIsDragging] = useState(false);
@@ -544,7 +580,9 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
       const svg = doc.querySelector("svg") as SVGSVGElement | null;
       if(!svg) { alert("SVG nicht gefunden."); return; }
       sanitize(svg); ensureViewBox(svg);
-      svg.setAttribute("width","100%"); svg.setAttribute("height","100%");
+      
+      // Apply responsive sizing
+      applyResponsiveSizing(svg);
       svg.setAttribute("preserveAspectRatio","xMidYMid meet");
       planeRef.current!.innerHTML = ""; planeRef.current!.appendChild(svg);
       svgRef.current = svg;
