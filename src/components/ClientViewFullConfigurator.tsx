@@ -40,6 +40,9 @@ export default function ClientViewFullConfigurator() {
   const [projectData, setProjectData] = useState<any>(null);
   const [isLoadingProject, setIsLoadingProject] = useState(true);
   const [isDesignApproved, setIsDesignApproved] = useState(false);
+  
+  // SVG uploads по дизайну
+  const [uploadedSvgsByDesign, setUploadedSvgsByDesign] = useState<Record<string, string>>({});
 
   // DEBUG: Test if component renders
   useEffect(() => {
@@ -95,18 +98,17 @@ export default function ClientViewFullConfigurator() {
         
         setProjectData(data);
         console.log('📄 Project data loaded:', data);
-        
-        // ВАЖНО: Проверяем, не является ли мокап fallback из другого проекта
-        if (data.mockupUrl && data.mockupUrl.includes('143534739')) {
-          console.warn('⚠️ Detected fallback mockup from another project, removing it');
-          data.mockupUrl = '';
-        }
+        console.log('🎯 MockUp URL found:', data.mockupUrl);
+        console.log('🎯 SVG Content:', data.svgContent ? 'Available' : 'Not available');
+        console.log('🎯 SVG URL:', data.svgUrl);
         
         // Конвертируем данные Monday.com в формат NeonDesign
         const design = {
           ...data,
           id: data.id,
           name: data.name,
+          // Если есть мокап, используем его как фон для всей SVG области
+          mockupUrl: data.mockupUrl || '', 
         };
         
         // Обновляем конфигурацию реальными данными проекта
@@ -350,33 +352,20 @@ export default function ClientViewFullConfigurator() {
         orderToken={''}
       />
 
-      {/* Main Content */}
-      <main className="relative z-10 container mx-auto px-4 py-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Title Section */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-800 mb-4 tracking-tight">
-              Neon-Schild{' '}
-              <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Konfigurator
-              </span>
-            </h1>
-            <p className="text-gray-600 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
-              Gestalten Sie Ihre individuelle LED-Neon Lichtwerbung und sehen Sie das Ergebnis in Echtzeit
-            </p>
-          </div>
-          
+      <main className="relative z-10 container mx-auto px-2 sm:px-4 py-4 sm:py-6">
+        <div className="max-w-7xl mx-auto flex flex-col">
+        
           {/* 1. Design Preview Section - Full Width on Mobile */}
-          <div className="w-full mb-4 sm:mb-6">
-            <div className="bg-white/80 backdrop-blur-md rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 border border-white/30">
+          <div className="w-full mb-3 sm:mb-4 md:mb-6 order-1">
+            <div className="bg-white/80 backdrop-blur-md rounded-lg sm:rounded-xl lg:rounded-2xl shadow-lg sm:shadow-xl p-3 sm:p-4 lg:p-6 border border-white/30">
               {/* Header Row */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 space-y-4 sm:space-y-0">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-2">
-                    <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 lg:mb-6 space-y-3 sm:space-y-0">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-1.5 sm:p-2">
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-800">
+                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-800">
                       Ihr Design: {config.selectedDesign?.name || 'Laden...'}
                     </h2>
                     <p className="text-xs sm:text-sm text-gray-600">Vorschau in Echtzeit</p>
@@ -384,22 +373,22 @@ export default function ClientViewFullConfigurator() {
                 </div>
                 
                 {/* Controls - Responsive */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
                   {/* LED Toggle */}
-                  <div className="flex items-center justify-between sm:justify-start space-x-3 p-2 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium text-gray-700">Neon</span>
+                  <div className="flex items-center justify-between sm:justify-start space-x-2 sm:space-x-3 p-2 bg-gray-50 rounded-lg">
+                    <span className="text-xs sm:text-sm font-medium text-gray-700">Neon</span>
                     <button
                       onClick={() => {
                         console.log('🔵 ClientViewFullConfigurator: Toggling neon from', neonOn, 'to', !neonOn);
                         setNeonOn(!neonOn);
                       }}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                         neonOn ? 'bg-blue-600' : 'bg-gray-300'
                       }`}
                     >
                       <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          neonOn ? 'translate-x-6' : 'translate-x-1'
+                        className={`inline-block h-3 w-3 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform ${
+                          neonOn ? 'translate-x-5 sm:translate-x-6' : 'translate-x-1'
                         }`}
                       />
                     </button>
@@ -408,7 +397,7 @@ export default function ClientViewFullConfigurator() {
                   {/* Price Display */}
                   <div className="text-center sm:text-right p-2 bg-green-50 rounded-lg">
                     <div className="text-xs text-gray-600">Preis</div>
-                    <div className="text-base sm:text-lg font-bold text-green-600">
+                    <div className="text-sm sm:text-base lg:text-lg font-bold text-green-600">
                       €{currentDesignPrice.toFixed(2)}
                     </div>
                   </div>
@@ -416,7 +405,16 @@ export default function ClientViewFullConfigurator() {
               </div>
               
               {/* Design Preview */}
-              <div className="aspect-video bg-gray-900 rounded-lg sm:rounded-xl overflow-hidden relative group">
+              <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 h-[400px] sm:h-[500px] lg:h-[600px] flex items-center justify-center w-full border-4 border-gradient-to-r from-blue-500/30 via-purple-500/30 to-pink-500/30 shadow-2xl overflow-hidden rounded-lg sm:rounded-xl before:absolute before:inset-0 before:bg-gradient-to-r before:from-blue-500/10 before:via-purple-500/10 before:to-pink-500/10 before:animate-pulse before:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-gradient-to-r after:from-cyan-400/20 after:via-purple-400/20 after:to-pink-400/20 after:rounded-lg after:animate-pulse after:pointer-events-none group">
+                {/* Stylische Ecken-Ornamente */}
+                <div className="absolute top-4 left-4 w-6 h-6 sm:w-8 sm:h-8 border-l-3 border-t-3 border-blue-400/60 rounded-tl-xl z-10"></div>
+                <div className="absolute top-4 right-4 w-6 h-6 sm:w-8 sm:h-8 border-r-3 border-t-3 border-purple-400/60 rounded-tr-xl z-10"></div>
+                <div className="absolute bottom-4 left-4 w-6 h-6 sm:w-8 sm:h-8 border-l-3 border-b-3 border-pink-400/60 rounded-bl-xl z-10"></div>
+                <div className="absolute bottom-4 right-4 w-6 h-6 sm:w-8 sm:h-8 border-r-3 border-b-3 border-cyan-400/60 rounded-br-xl z-10"></div>
+                
+                {/* Glowing border effect */}
+                <div className="absolute inset-2 rounded-xl bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 animate-pulse pointer-events-none z-10"></div>
+                
                 <NeonMockupStage
                   lengthCm={Math.max(config.customWidth, config.calculatedHeight)}
                   waterproof={config.isWaterproof}
@@ -424,86 +422,64 @@ export default function ClientViewFullConfigurator() {
                   uvOn={config.hasUvPrint || false}
                   customMockupUrl={previewContent?.type === 'mockup' ? previewContent.url : undefined}
                   svgImageUrl={previewContent?.type === 'svg' ? previewContent.url : undefined}
+                  currentSvgContent={uploadedSvgsByDesign[config.selectedDesign.id]}
+                  onSvgUpload={(svgContent) => {
+                    if (svgContent) {
+                      setUploadedSvgsByDesign(prev => ({
+                        ...prev,
+                        [config.selectedDesign.id]: svgContent
+                      }));
+                    } else {
+                      setUploadedSvgsByDesign(prev => {
+                        const updated = { ...prev };
+                        delete updated[config.selectedDesign.id];
+                        return updated;
+                      });
+                    }
+                  }}
                   hideSettingsButton={true}
                 />
                 
                 {/* Overlay Info */}
-                <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
-                  <div className="bg-black/50 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs sm:text-sm">
-                    <div className="flex items-center space-x-2">
+                <div className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 flex justify-between items-start">
+                  <div className="bg-black/50 backdrop-blur-sm text-white px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs">
+                    <div className="flex items-center space-x-1 sm:space-x-2">
                       <span className="text-green-400">●</span>
                       <span>Live Vorschau</span>
                     </div>
                   </div>
                   
-                  <div className="bg-black/50 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs sm:text-sm">
-                    <div className="flex items-center space-x-4">
-                      <span className="text-blue-400">Breite:</span>
-                      <span className="font-bold text-blue-300">{config.customWidth} cm</span>
-                      <span className="text-purple-400">Höhe:</span>
-                      <span className="font-bold text-purple-300">{config.calculatedHeight} cm</span>
+                  <div className="bg-black/50 backdrop-blur-sm text-white px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs">
+                    <div className="flex items-center space-x-2 sm:space-x-4">
+                      <span className="text-blue-400 hidden sm:inline">Breite:</span>
+                      <span className="text-blue-400 sm:hidden">B:</span>
+                      <span className="font-bold text-blue-300">{config.customWidth}cm</span>
+                      <span className="text-purple-400 hidden sm:inline">Höhe:</span>
+                      <span className="text-purple-400 sm:hidden">H:</span>
+                      <span className="font-bold text-purple-300">{config.calculatedHeight}cm</span>
                     </div>
                   </div>
                 </div>
                 
                 {/* Bottom Stats */}
-                <div className="absolute bottom-4 left-4 right-4">
-                  <div className="bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-xl">
-                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4">
+                  <div className="bg-black/50 backdrop-blur-sm text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl">
+                    <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center space-x-1">
-                        <span className="text-green-400">Elemente:</span>
+                        <span className="text-green-400 hidden sm:inline">Elemente:</span>
+                        <span className="text-green-400 sm:hidden">E:</span>
                         <span className="font-bold text-green-300">5</span>
                       </div>
                       <div className="flex items-center space-x-1">
-                        <span className="text-blue-400">LED-Länge:</span>
+                        <span className="text-blue-400 hidden sm:inline">LED-Länge:</span>
+                        <span className="text-blue-400 sm:hidden">LED:</span>
                         <span className="font-bold text-blue-300">{config.selectedDesign?.ledLength || '6'}m</span>
                       </div>
                       <div className="flex items-center space-x-1">
-                        <span className="text-purple-400">Verbrauch:</span>
+                        <span className="text-purple-400 hidden sm:inline">Verbrauch:</span>
+                        <span className="text-purple-400 sm:hidden">V:</span>
                         <span className="font-bold text-purple-300">60W</span>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Additional Design Info */}
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs sm:text-sm">
-                  <div className="text-center">
-                    <div className="text-blue-700">Technische Daten</div>
-                    <div className="grid grid-cols-3 gap-2 mt-1">
-                      <div>
-                        <div className="text-gray-600">Elemente:</div>
-                        <div className="font-bold text-gray-800">5</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-green-700">Originale Daten</div>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      <div>
-                        <div className="text-gray-600">Breite:</div>
-                        <div className="font-bold text-gray-800">{projectData?.originalWidth || config.customWidth}cm</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-600">Höhe:</div>
-                        <div className="font-bold text-gray-800">{projectData?.originalHeight || config.calculatedHeight}cm</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-orange-700">LED-Streifen</div>
-                    <div className="mt-1">
-                      <div className="text-orange-600">LED-Länge:</div>
-                      <div className="font-bold text-orange-800">{config.selectedDesign?.ledLength || '6'}m</div>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-purple-700">Leistung</div>
-                    <div className="mt-1">
-                      <div className="text-purple-600">Verbrauch:</div>
-                      <div className="font-bold text-purple-800">60W</div>
                     </div>
                   </div>
                 </div>
@@ -511,30 +487,74 @@ export default function ClientViewFullConfigurator() {
             </div>
           </div>
           
-          {/* 3. Configuration Section - Responsive */}
-          <div className="w-full">
-            <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 mb-4 sm:mb-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 space-y-4 sm:space-y-0">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-2">
-                    <Ruler className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+          {/* 2. Technical Information Section - Responsive Order */}
+          <div className="w-full mb-3 sm:mb-4 md:mb-6 order-3 lg:order-2">
+            <div className="bg-blue-50 rounded-lg border border-blue-200 p-2 sm:p-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs">
+                <div className="text-center">
+                  <div className="text-blue-700 font-medium mb-1">Technische Daten</div>
+                  <div className="grid grid-cols-1 gap-1">
+                    <div>
+                      <div className="text-gray-600">Elemente:</div>
+                      <div className="font-bold text-gray-800">5</div>
+                    </div>
                   </div>
-                  <h2 className="text-lg sm:text-xl font-bold text-gray-800">Konfiguration</h2>
+                </div>
+                <div className="text-center">
+                  <div className="text-green-700 font-medium mb-1">Originale Daten</div>
+                  <div className="grid grid-cols-2 gap-1">
+                    <div>
+                      <div className="text-gray-600">Breite:</div>
+                      <div className="font-bold text-gray-800">{projectData?.originalWidth || config.customWidth}cm</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600">Höhe:</div>
+                      <div className="font-bold text-gray-800">{projectData?.originalHeight || config.calculatedHeight}cm</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-orange-700 font-medium mb-1">LED-Streifen</div>
+                  <div>
+                    <div className="text-orange-600">LED-Länge:</div>
+                    <div className="font-bold text-orange-800">{config.selectedDesign?.ledLength || '6'}m</div>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-purple-700 font-medium mb-1">Leistung</div>
+                  <div>
+                    <div className="text-purple-600">Verbrauch:</div>
+                    <div className="font-bold text-purple-800">60W</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* 3. Configuration Section - Responsive */}
+          <div className="w-full order-2 lg:order-3">
+            <div className="bg-white rounded-lg sm:rounded-xl lg:rounded-2xl shadow-lg sm:shadow-xl p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 lg:mb-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 lg:mb-6 space-y-3 sm:space-y-0">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-1.5 sm:p-2">
+                    <Ruler className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-white" />
+                  </div>
+                  <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-800">Konfiguration</h2>
                 </div>
                 
                 {/* Action Buttons - Responsive */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                   {/* Add Button */}
                   {isAddingToCart ? (
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg sm:rounded-xl p-2 sm:p-3 lg:p-4 min-h-[44px] flex items-center justify-center">
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-2 sm:p-3 min-h-[40px] sm:min-h-[44px] flex items-center justify-center">
                       <div className="flex items-center space-x-2 animate-pulse justify-center">
                         <div className="bg-green-500 rounded-full p-0.5">
                           <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                         </div>
-                        <span className="text-green-800 font-bold text-xs sm:text-sm lg:text-base animate-pulse">Im Warenkorb</span>
-                        <div className="text-xs sm:text-sm lg:text-base font-bold text-green-800">
+                        <span className="text-green-800 font-bold text-xs sm:text-sm animate-pulse">Im Warenkorb</span>
+                        <div className="text-xs sm:text-sm font-bold text-green-800">
                           €{currentDesignPrice.toFixed(2)}
                         </div>
                       </div>
@@ -542,13 +562,13 @@ export default function ClientViewFullConfigurator() {
                   ) : (
                     <button
                       onClick={() => handleToggleDesign(config.selectedDesign, true)}
-                      className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 active:from-green-700 active:to-emerald-800 text-white font-bold py-2.5 sm:py-3 lg:py-4 px-3 sm:px-4 lg:px-6 rounded-lg sm:rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg sm:shadow-xl hover:shadow-xl sm:hover:shadow-2xl flex items-center justify-center space-x-1.5 sm:space-x-2 lg:space-x-3 text-xs sm:text-sm lg:text-lg group relative overflow-hidden z-20 min-h-[44px] touch-manipulation"
+                      className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 active:from-green-700 active:to-emerald-800 text-white font-bold py-2 sm:py-2.5 lg:py-3 px-3 sm:px-4 lg:px-6 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl flex items-center justify-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm lg:text-base group relative overflow-hidden z-20 min-h-[40px] sm:min-h-[44px] touch-manipulation"
                     >
                       {/* Glowing background animation */}
                       <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300 animate-pulse"></div>
                       
                       <div className="bg-white/20 rounded-full p-0.5 flex-shrink-0">
-                        <svg className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                       </div>
@@ -556,7 +576,7 @@ export default function ClientViewFullConfigurator() {
                         <span className="hidden sm:inline">{currentDesignCount > 0 ? 'Weitere hinzufügen' : 'Hinzufügen'}</span>
                         <span className="sm:hidden">Hinzufügen</span>
                       </span>
-                      <div className="bg-white/20 rounded-full px-1.5 sm:px-2 lg:px-3 py-0.5 sm:py-1 text-xs sm:text-sm lg:text-base font-bold flex-shrink-0">
+                      <div className="bg-white/20 rounded-full px-1.5 sm:px-2 py-0.5 text-xs sm:text-sm font-bold flex-shrink-0">
                         €{currentDesignPrice.toFixed(2)}
                       </div>
                     </button>
@@ -566,12 +586,12 @@ export default function ClientViewFullConfigurator() {
                   <div className="relative w-full sm:w-auto">
                     <button 
                       onClick={handleShowShippingPage}
-                      className="relative w-full sm:w-auto bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 active:from-blue-700 active:to-indigo-800 text-white py-2.5 sm:py-3 lg:py-4 px-3 sm:px-4 lg:px-8 rounded-lg sm:rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg sm:shadow-xl hover:shadow-xl sm:hover:shadow-2xl flex items-center justify-center space-x-1.5 sm:space-x-2 lg:space-x-3 font-bold text-xs sm:text-sm lg:text-lg group z-10 overflow-hidden min-h-[44px] touch-manipulation"
+                      className="relative w-full sm:w-auto bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 active:from-blue-700 active:to-indigo-800 text-white py-2 sm:py-2.5 lg:py-3 px-3 sm:px-4 lg:px-6 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl flex items-center justify-center space-x-1.5 sm:space-x-2 font-bold text-xs sm:text-sm lg:text-base group z-10 overflow-hidden min-h-[40px] sm:min-h-[44px] touch-manipulation"
                     >
                       {/* Sliding background animation */}
                       <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
                       
-                      <Truck className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 relative z-10 group-hover:animate-bounce flex-shrink-0" />
+                      <Truck className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 relative z-10 group-hover:animate-bounce flex-shrink-0" />
                       <span className="font-bold relative z-10 text-center">
                         <span className="hidden sm:inline">Versand berechnen</span>
                         <span className="sm:hidden">Versand</span>
@@ -580,7 +600,7 @@ export default function ClientViewFullConfigurator() {
                     
                     {/* Animated Cart Counter Badge */}
                     {cartItemCount > 0 && (
-                      <div className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 lg:-top-3 lg:-right-3 bg-red-500 text-white text-xs sm:text-sm font-bold rounded-full h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 flex items-center justify-center animate-bounce shadow-xl border-2 lg:border-3 border-white z-30 min-w-[20px] sm:min-w-[24px] lg:min-w-[32px]">
+                      <div className="absolute -top-1 -right-1 sm:-top-1.5 sm:-right-1.5 lg:-top-2 lg:-right-2 bg-red-500 text-white text-xs font-bold rounded-full h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 flex items-center justify-center animate-bounce shadow-lg border border-white z-30 min-w-[16px] sm:min-w-[20px] lg:min-w-[24px]">
                         {cartItemCount}
                       </div>
                     )}
@@ -745,7 +765,7 @@ export default function ClientViewFullConfigurator() {
 
         {/* 4. Design Approval and Order Section */}
       
-        <div className="mt-8 mb-4">
+        <div className="mt-8 mb-4 order-4">
           <MondayStatus />
         </div>
       </main>

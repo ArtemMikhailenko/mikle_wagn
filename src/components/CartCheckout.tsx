@@ -457,7 +457,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
               </div>
               
               <div className="flex justify-between text-xl font-bold text-gray-800 border-t pt-3">
-                <span>Gesamtpreis:</span>
+                <span>Preis:</span>
                 <span className="text-green-600">€{gesamtpreis.toFixed(2)}</span>
               </div>
             </div>
@@ -501,7 +501,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
                 <span>
                   {isProcessingPayment ? 'Wird verarbeitet...' : 
                    !isConfirmed ? 'Bestätigung erforderlich' :
-                   `Jetzt bezahlen - €${gesamtpreis.toFixed(2)}`}
+                   `Jetzt bezahlen • €${gesamtpreis.toFixed(2)}`}
                 </span>
               </button>
               
@@ -598,7 +598,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
                   <span>€{tax.toFixed(2)}</span>
                 </div>
                 <div className="border-t pt-1 mt-2 flex justify-between font-bold">
-                  <span>Gesamtpreis</span>
+                  <span>Preis</span>
                   <span>€{gesamtpreis.toFixed(2)}</span>
                 </div>
               </div>

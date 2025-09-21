@@ -1,7 +1,7 @@
 import React from 'react';
-import { ChevronLeft, ChevronRight, Palette, Eye, EyeOff, X, ShoppingCart } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Palette, ShoppingCart } from 'lucide-react';
 import { NeonDesign } from '../types/configurator';
-import { calculateSingleSignPrice, calculateProportionalLedLength } from '../utils/calculations';
+import { calculateSingleSignPrice } from '../utils/calculations';
 import { SignConfiguration } from '../types/configurator';
 import SVGPreview from './SVGPreview';
 
@@ -27,14 +27,10 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
   onDesignChange,
   onToggleDesign,
   config,
-  signs,
-  onSignToggle,
-  onRemoveSign,
   isWaterproof = false,
   isTwoPart = false,
   hasUvPrint = true,
   onUvPrintChange,
-  onConfigChange,
 }) => {
   console.log('🎨 DesignSelector hasUvPrint:', hasUvPrint);
   console.log('🎨 DesignSelector onUvPrintChange:', typeof onUvPrintChange);
@@ -59,7 +55,7 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
     onDesignChange(designs[nextIndex]);
   };
 
-  const handleCheckboxChange = (checked: boolean) => {
+  const handleCheckboxChange = () => {
     // Animation starten
     setIsAdding(true);
     
@@ -96,38 +92,6 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
     console.log('💰 Single sign price (with express if enabled):', basePrice);
     return basePrice;
   }, [selectedDesign, currentWidth, currentHeight, isWaterproof, isTwoPart, hasUvPrint, config.expressProduction]);
-
-  // Calculate individual sign prices for display
-  const signPrices = React.useMemo(() => {
-    return signs?.map(sign => {
-      // Use current hasUvPrint for the selected design, otherwise use sign's own hasUvPrint
-      const effectiveHasUvPrint = sign.design.id === selectedDesign.id ? hasUvPrint : (sign.hasUvPrint ?? true);
-      const effectiveExpressProduction = sign.design.id === selectedDesign.id ? (config.expressProduction || false) : (sign.expressProduction || false);
-      console.log('🎨 DesignSelector signPrices calculation:', {
-        signId: sign.id,
-        designId: sign.design.id,
-        selectedDesignId: selectedDesign.id,
-        isSelectedDesign: sign.design.id === selectedDesign.id,
-        currentHasUvPrint: hasUvPrint,
-        signHasUvPrint: sign.hasUvPrint,
-        effectiveHasUvPrint,
-        effectiveExpressProduction
-      });
-      return {
-        ...sign,
-        price: calculateSingleSignPrice(
-          sign.design, 
-          sign.width, 
-          sign.height, 
-          sign.isWaterproof, 
-          sign.isTwoPart, 
-          effectiveHasUvPrint,
-          sign.hasHangingSystem || false,
-          effectiveExpressProduction
-        )
-      };
-    }) || [];
-  }, [signs, hasUvPrint, selectedDesign.id, config.expressProduction]);
 
   const isCurrentDesignAdded = currentDesignCount > 0;
 
@@ -327,7 +291,7 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
                 €{currentDesignPrice.toFixed(2)} pro Stück
               </div>
               <div className="text-sm text-green-700 font-medium mt-1">
-                Gesamt: €{(currentDesignPrice * currentDesignCount).toFixed(2)}
+                {currentDesignCount}x • €{(currentDesignPrice * currentDesignCount).toFixed(2)}
               </div>
             </div>
           )}

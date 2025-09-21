@@ -1,9 +1,10 @@
 import React from 'react';
-import { Calculator, CreditCard, Eye, EyeOff, X, ShoppingCart, Package, Truck, Home, MapPin } from 'lucide-react';
+import { Calculator, CreditCard, Eye, EyeOff, X, ShoppingCart, Truck, Home, MapPin } from 'lucide-react';
 import { ConfigurationState } from '../types/configurator';
-import { calculatePriceBreakdown, getShippingInfo, calculateArea, calculateDistance, calculateRealDistance } from '../utils/calculations';
+import { getShippingInfo, calculateArea, calculateDistance, calculateRealDistance } from '../utils/calculations';
 import { calculateRealSingleSignPriceSync } from '../utils/realCalculations';
 import { mondayService } from '../services/mondayService';
+import SVGPreview from './SVGPreview';
 
 interface PricingCalculatorProps {
   config: ConfigurationState;
@@ -32,7 +33,6 @@ const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   
   const [showPostalCodeInput, setShowPostalCodeInput] = React.useState(false);
   const [tempPostalCode, setTempPostalCode] = React.useState('');
-  const [showDistanceInfo, setShowDistanceInfo] = React.useState(false);
   const [showMapView, setShowMapView] = React.useState(false);
   const [routeInfo, setRouteInfo] = React.useState<{
     distance: number;
@@ -136,19 +136,6 @@ const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     }
     
     return options;
-  };
-
-  const shippingOptions = getShippingOptions();
-  
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'dhl': return <Package className="h-4 w-4" />;
-      case 'spedition': return <Truck className="h-4 w-4" />;
-      case 'automatic': return <Truck className="h-4 w-4" />;
-      case 'pickup': return <Home className="h-4 w-4" />;
-      case 'postal-input': return <MapPin className="h-4 w-4" />;
-      default: return <Package className="h-4 w-4" />;
-    }
   };
 
   const handlePostalCodeSubmit = () => {
@@ -703,10 +690,12 @@ const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       )}
 
                 
-      {/* Gesamtpreis (Total Price) - Prominently Displayed */}
+      {/* Total Price - Prominently Displayed */}
       <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 mb-4 border-2 border-green-200">
         <div className="flex justify-between items-center">
-          <span className="text-lg lg:text-xl font-bold text-gray-800">Gesamtpreis:</span>
+          <span className="text-lg lg:text-xl font-bold text-gray-800">
+            {signPrices.filter(s => s.isEnabled).length + (isCurrentDesignInList ? 0 : 1)} Artikel
+          </span>
           <span className="text-3xl font-bold text-green-600">
             €{gesamtpreis.toFixed(2)}
           </span>
@@ -738,16 +727,16 @@ const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
       {/* Payment Button */}
       <div className="space-y-3">
-        <button 
+        <button
           onClick={onGoToCart}
           className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold py-4 rounded-lg lg:hover:from-blue-700 lg:hover:to-purple-700 transition duration-300 lg:transform lg:hover:scale-105 shadow-lg lg:hover:shadow-xl flex items-center justify-center space-x-2 lg:space-x-3 disabled:opacity-50 disabled:cursor-not-allowed lg:disabled:transform-none active:scale-95"
           disabled={signPrices.filter(s => s.isEnabled).length === 0 && isCurrentDesignInList}
         >
           <CreditCard className="h-5 w-5" />
-          <span className="text-sm lg:text-base">Warenkorb - €{gesamtpreis.toFixed(2)}</span>
-        </button>
-        
-        {/* Payment Methods */}
+          <span className="text-sm lg:text-base">
+            {signPrices.filter(s => s.isEnabled).length + (isCurrentDesignInList ? 0 : 1)} Artikel • €{gesamtpreis.toFixed(2)}
+          </span>
+        </button>        {/* Payment Methods */}
         <div className="bg-gray-50 rounded-lg p-3 lg:p-2 border">
           <div className="flex items-center justify-center space-x-2 mb-1">
             <span className="text-xs text-gray-600">Sichere Zahlung:</span>
@@ -833,7 +822,7 @@ const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {signPrices.map((sign, index) => (
+                  {signPrices.map((sign) => (
                     <div
                       key={sign.id}
                       className={`border rounded-lg p-3 md:p-4 transition-all duration-300 ${

@@ -18,6 +18,10 @@ export interface NeonDesign {
   isWaterproof?: boolean; // waterproof option
   hasUvPrint?: boolean; // UV print option
   configText?: string; // raw configuration text from Monday.com
+  // Client information from Monday.com
+  clientEmail?: string; // client email address
+  clientName?: string; // client name
+  clientPhone?: string; // client phone number
 }
 
 export interface PricingComponents {
@@ -36,7 +40,7 @@ export interface PowerSupplyTier {
 }
 
 export interface ShippingOption {
-  type: 'dhl' | 'spedition' | 'personal' | 'pickup';
+  type: 'dhl' | 'spedition' | 'personal' | 'pickup' | 'automatic';
   name: string;
   price: number;
   description: string;

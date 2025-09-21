@@ -567,9 +567,9 @@ function NeonConfiguratorApp() {
         )}
 
         {/* Unified Layout - Responsive Desktop Design */}
-        <div className={`${currentStep === 'cart' ? 'hidden' : ''}`}>
+        <div className={`${currentStep === 'cart' ? 'hidden' : ''} flex flex-col`}>
           {/* 1. Product Preview Section - Full Width */}
-          <div className="mb-4 sm:mb-6 lg:mb-8 -mx-4 sm:-mx-6 lg:-mx-8 -mt-6 md:-mt-12">
+          <div className="mb-0 sm:mb-0 lg:mb-0 -mx-4 sm:-mx-6 lg:-mx-8 -mt-6 md:-mt-12 order-1">
             {/* Large Mockup Image - Full Width */}
             <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 h-[400px] sm:h-[500px] lg:h-[600px] pt-16 sm:pt-20 flex items-center justify-center w-full border-4 border-gradient-to-r from-blue-500/30 via-purple-500/30 to-pink-500/30 shadow-2xl overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-r before:from-blue-500/10 before:via-purple-500/10 before:to-pink-500/10 before:animate-pulse before:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-gradient-to-r after:from-cyan-400/20 after:via-purple-400/20 after:to-pink-400/20 after:rounded-lg after:animate-pulse after:pointer-events-none">
               {/* Stylische Ecken-Ornamente */}
@@ -642,7 +642,9 @@ function NeonConfiguratorApp() {
             </div>
             
             {/* 2. Technical Information - Responsive */}
-            <div className="mx-4 sm:mx-6 lg:mx-8 -mt-1">
+           
+          </div>
+           <div className="mx-4 mb-0 sm:mb-4 md:mb-8 sm:mx-6 lg:mx-8 -mt-1 order-3 lg:order-2">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs py-3 px-4 sm:px-6 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-gray-100 space-y-2 sm:space-y-0">
                 {/* Technical Data Section - Left */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
@@ -705,10 +707,8 @@ function NeonConfiguratorApp() {
                 </div>
               </div>
             </div>
-          </div>
-          
           {/* 3. Configuration Section - Responsive */}
-          <div className="w-full">
+          <div className="w-full order-2 lg:order-3">
             <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 mb-4 sm:mb-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 space-y-4 sm:space-y-0">
                 <div className="flex items-center space-x-3">
@@ -1001,11 +1001,8 @@ function NeonConfiguratorApp() {
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm text-gray-600">
-              {cartItemCount} Artikel • €{currentDesignPrice.toFixed(2)}
-            </div>
             <div className="text-lg font-bold text-green-600">
-              Gesamt: €{(currentDesignPrice * 1.19).toFixed(2)}
+              {cartItemCount} Artikel • €{currentDesignPrice.toFixed(2)}
             </div>
           </div>
           <button

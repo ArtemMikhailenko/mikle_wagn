@@ -290,7 +290,7 @@ export default function RealPricingCalculator({ config, selectedDesign }: RealPr
 
         <div className="border-t border-gray-600 pt-3 mt-4">
           <div className="flex justify-between items-center text-lg font-semibold">
-            <span>Gesamtpreis</span>
+            <span>Preis</span>
             <div className="flex items-center gap-2">
               <Euro className="w-4 h-4 text-green-400" />
               <span className="text-green-400">{formatPrice(calculation.total)}</span>

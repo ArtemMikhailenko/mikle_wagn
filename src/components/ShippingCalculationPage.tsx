@@ -646,7 +646,7 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                     </div>
                     
                     <div className="flex justify-between text-xl font-bold text-gray-800 border-t pt-3">
-                      <span>Gesamtpreis:</span>
+                      <span>Preis:</span>
                       <span className="text-green-600">€{total.toFixed(2)}</span>
                     </div>
                   </div>
@@ -778,8 +778,8 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                   <span>€{tax.toFixed(2)}</span>
                 </div>
                 <div className="border-t pt-1 mt-2 flex justify-between font-bold">
-                  <span>Gesamtpreis</span>
-                  <span>€{total.toFixed(2)}</span>
+                  <span>Preis</span>
+                  <span className="text-green-600">€{total.toFixed(2)}</span>
                 </div>
               </div>
             </div>

@@ -731,10 +731,17 @@ class MondayDirectService {
       })));
       
       // Извлекаем данные из колонок по известным ID
-      const clientEmail = this.getColumnValue(item, 'email') || 
+      const clientEmail = this.getColumnValue(item, 'email_mkq7rms') || 
+                         this.getColumnValue(item, 'email') || 
                          this.getColumnValue(item, 'person') || 
                          this.getColumnValue(item, 'dup__of_email') ||
                          'no-email@example.com';
+      
+      const clientPhone = this.getColumnValue(item, 'phone_mkq6twmv') ||
+                         this.getColumnValue(item, 'phone') || 
+                         this.getColumnValue(item, 'telefon') || 
+                         this.getColumnValue(item, 'dup__of_telefon') ||
+                         null;
       
       const clientName = this.getColumnValue(item, 'person') || 
                         this.getColumnValue(item, 'name') || 
@@ -753,7 +760,7 @@ class MondayDirectService {
                     this.getColumnValue(item, 'status4') ||
                     'draft';
 
-      console.log(`📊 Extracted data - Email: ${clientEmail}, Name: ${clientName}, Status: ${status}`);
+      console.log(`📊 Extracted data - Email: ${clientEmail}, Name: ${clientName}, Phone: ${clientPhone}, Status: ${status}`);
 
       // Извлекаем размеры и конфигурацию из полей Monday.com
       const widthValue = this.getColumnValue(item, 'numeric_mkq65yv') || // Размер в см
@@ -802,7 +809,11 @@ class MondayDirectService {
         // Добавляем конфигурацию
         isWaterproof: isWaterproof,
         hasUvPrint: hasUvPrint,
-        configText: configText
+        configText: configText,
+        // Добавляем клиентские данные
+        clientEmail: clientEmail,
+        clientName: clientName,
+        clientPhone: clientPhone || undefined
       };
 
       // Проверяем файлы MockUp в основной доске

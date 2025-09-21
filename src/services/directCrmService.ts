@@ -7,6 +7,7 @@ export interface CRMProjectData {
   project_id: string;
   client_email: string;
   client_name: string;
+  client_phone?: string;
   design_name: string;
   svg_content?: string;
   svg_url?: string;
@@ -36,8 +37,9 @@ class DirectCRMService {
       
       // Конвертируем NeonDesign в CRMProjectData
       const crmProjects: CRMProjectData[] = neonDesigns.map(design => {
-        const clientEmail = (design as any).clientEmail || 'no-email@example.com';
-        const clientName = (design as any).clientName || design.name;
+        const clientEmail = design.clientEmail || 'no-email@example.com';
+        const clientName = design.clientName || design.name;
+        const clientPhone = design.clientPhone;
         const status = (design as any).status || 'draft';
         const mondayId = (design as any).mondayId || design.id;
 
@@ -46,6 +48,7 @@ class DirectCRMService {
           project_id: design.id,
           client_email: clientEmail,
           client_name: clientName,
+          client_phone: clientPhone,
           design_name: design.name,
           svg_content: design.svgContent || undefined,
           svg_url: design.svgUrl || undefined,
@@ -75,8 +78,9 @@ class DirectCRMService {
         return null;
       }
 
-      const clientEmail = (design as any).clientEmail || 'no-email@example.com';
-      const clientName = (design as any).clientName || design.name;
+      const clientEmail = design.clientEmail || 'no-email@example.com';
+      const clientName = design.clientName || design.name;
+      const clientPhone = design.clientPhone;
       const status = (design as any).status || 'draft';
       const mondayId = (design as any).mondayId || design.id;
 
@@ -85,6 +89,7 @@ class DirectCRMService {
         project_id: design.id,
         client_email: clientEmail,
         client_name: clientName,
+        client_phone: clientPhone,
         design_name: design.name,
         svg_content: design.svgContent || undefined,
         svg_url: design.svgUrl || undefined,

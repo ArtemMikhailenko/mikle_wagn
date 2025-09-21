@@ -353,13 +353,36 @@ export default function ClientView() {
                 </div>
               </div>
               
-              <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative">
+              <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 h-[400px] sm:h-[500px] lg:h-[600px] flex items-center justify-center w-full border-4 border-gradient-to-r from-blue-500/30 via-purple-500/30 to-pink-500/30 shadow-2xl overflow-hidden rounded-lg before:absolute before:inset-0 before:bg-gradient-to-r before:from-blue-500/10 before:via-purple-500/10 before:to-pink-500/10 before:animate-pulse before:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-gradient-to-r after:from-cyan-400/20 after:via-purple-400/20 after:to-pink-400/20 after:rounded-lg after:animate-pulse after:pointer-events-none">
+                {/* Stylische Ecken-Ornamente */}
+                <div className="absolute top-4 left-4 w-6 h-6 sm:w-8 sm:h-8 border-l-3 border-t-3 border-blue-400/60 rounded-tl-xl z-10"></div>
+                <div className="absolute top-4 right-4 w-6 h-6 sm:w-8 sm:h-8 border-r-3 border-t-3 border-purple-400/60 rounded-tr-xl z-10"></div>
+                <div className="absolute bottom-4 left-4 w-6 h-6 sm:w-8 sm:h-8 border-l-3 border-b-3 border-pink-400/60 rounded-bl-xl z-10"></div>
+                <div className="absolute bottom-4 right-4 w-6 h-6 sm:w-8 sm:h-8 border-r-3 border-b-3 border-cyan-400/60 rounded-br-xl z-10"></div>
+                
+                {/* Glowing border effect */}
+                <div className="absolute inset-2 rounded-xl bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 animate-pulse pointer-events-none z-10"></div>
+                
                 <NeonMockupStage
                   lengthCm={Math.max(config.customWidth, config.calculatedHeight)}
                   waterproof={config.isWaterproof}
                   neonOn={neonOn}
                   uvOn={config.hasUvPrint || false}
                   currentSvgContent={uploadedSvgsByDesign[config.selectedDesign.id]}
+                  onSvgUpload={(svgContent) => {
+                    if (svgContent) {
+                      setUploadedSvgsByDesign(prev => ({
+                        ...prev,
+                        [config.selectedDesign.id]: svgContent
+                      }));
+                    } else {
+                      setUploadedSvgsByDesign(prev => {
+                        const updated = { ...prev };
+                        delete updated[config.selectedDesign.id];
+                        return updated;
+                      });
+                    }
+                  }}
                 />
               </div>
             </div>
@@ -393,7 +416,7 @@ export default function ClientView() {
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Preis (gesamt)</label>
+                <label className="text-sm font-medium text-gray-700">Preis</label>
                 <div className="text-2xl font-bold text-green-600">
                   €{currentPrice.toFixed(2)}
                 </div>
@@ -455,7 +478,7 @@ export default function ClientView() {
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-green-600">€{currentPrice.toFixed(2)}</div>
-                  <div className="text-sm text-gray-600">Gesamtpreis (inkl. MwSt.)</div>
+                  <div className="text-sm text-gray-600">Preis (inkl. MwSt.)</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-purple-600">
