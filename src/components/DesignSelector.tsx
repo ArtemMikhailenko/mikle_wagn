@@ -1,7 +1,9 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight, Palette, ShoppingCart } from 'lucide-react';
 import { NeonDesign } from '../types/configurator';
-import { calculateSingleSignPrice } from '../utils/calculations';
+import DiscountTimer from './DiscountTimer';
+import FakeDiscountPriceDisplay from './FakeDiscountPriceDisplay';
+import { calculateSingleSignPriceWithFakeDiscount } from '../utils/calculations';
 import { SignConfiguration } from '../types/configurator';
 import SVGPreview from './SVGPreview';
 
@@ -76,9 +78,9 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
   };
 
   // Calculate current design price with real-time configuration
-  const currentDesignPrice = React.useMemo(() => {
+  const currentDesignPriceData = React.useMemo(() => {
     console.log('💰 Calculating price with hasUvPrint:', hasUvPrint);
-    const basePrice = calculateSingleSignPrice(
+    const priceData = calculateSingleSignPriceWithFakeDiscount(
       selectedDesign,
       currentWidth,
       currentHeight,
@@ -89,9 +91,11 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
       config.expressProduction || false
     );
     
-    console.log('💰 Single sign price (with express if enabled):', basePrice);
-    return basePrice;
+    console.log('💰 Single sign price (with express if enabled):', priceData.finalPrice);
+    return priceData;
   }, [selectedDesign, currentWidth, currentHeight, isWaterproof, isTwoPart, hasUvPrint, config.expressProduction]);
+  
+  const currentDesignPrice = currentDesignPriceData.finalPrice;
 
   const isCurrentDesignAdded = currentDesignCount > 0;
 
@@ -103,6 +107,9 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
         </div>
         <h2 className="text-lg md:text-2xl font-bold text-gray-800">Design auswählen</h2>
       </div>
+
+      {/* Discount Timer */}
+      <DiscountTimer className="mb-4" />
 
       {/* Design Display */}
       <div className="relative lg:block">
@@ -129,35 +136,41 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
             />
           </div>
           
-          {/* Mobile: Large Navigation Arrows */}
-          <button
-            onClick={goToPrevious}
-            className="lg:hidden absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-4 shadow-lg transition-all duration-300 hover:scale-110"
-          >
-            <ChevronLeft className="h-6 w-6 text-gray-700" />
-          </button>
-          
-          <button
-            onClick={goToNext}
-            className="lg:hidden absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-4 shadow-lg transition-all duration-300 hover:scale-110"
-          >
-            <ChevronRight className="h-6 w-6 text-gray-700" />
-          </button>
-          
-          {/* Design Indicators - Mobile: Larger dots */}
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 lg:space-x-1.5">
-            {designs.map((_, index) => (
+          {/* Mobile Navigation Arrows - показывать только если дизайнов больше одного */}
+          {designs.length > 1 && (
+            <>
               <button
-                key={index}
-                onClick={() => onDesignChange(designs[index])}
-                className={`w-4 h-4 lg:w-2.5 lg:h-2.5 rounded-full transition-all duration-300 border border-white/30 ${
-                  index === currentIndex
-                    ? 'bg-white shadow-lg shadow-white/50 scale-110'
-                    : 'bg-white/20 hover:bg-white/40 backdrop-blur-sm'
-                }`}
-              />
-            ))}
-          </div>
+                onClick={goToPrevious}
+                className="lg:hidden absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-4 shadow-lg transition-all duration-300 hover:scale-110"
+              >
+                <ChevronLeft className="h-6 w-6 text-gray-700" />
+              </button>
+              
+              <button
+                onClick={goToNext}
+                className="lg:hidden absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-4 shadow-lg transition-all duration-300 hover:scale-110"
+              >
+                <ChevronRight className="h-6 w-6 text-gray-700" />
+              </button>
+            </>
+          )}
+          
+          {/* Design Indicators - показывать только если дизайнов больше одного */}
+          {designs.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 lg:space-x-1.5">
+              {designs.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => onDesignChange(designs[index])}
+                  className={`w-4 h-4 lg:w-2.5 lg:h-2.5 rounded-full transition-all duration-300 border border-white/30 ${
+                    index === currentIndex
+                      ? 'bg-white shadow-lg shadow-white/50 scale-110'
+                      : 'bg-white/20 hover:bg-white/40 backdrop-blur-sm'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
         
         {/* UV-Druck Toggle - Außerhalb des Bildes */}
@@ -175,20 +188,24 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
           </button>
         </div>
         
-        {/* Navigation Arrows */}
-        <button
-          onClick={goToPrevious}
-          className="hidden lg:block absolute -left-3 lg:-left-4 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-3 lg:p-2 shadow-lg transition-all duration-300 hover:scale-110"
-        >
-          <ChevronLeft className="h-5 lg:h-4 w-5 lg:w-4 text-gray-700" />
-        </button>
-        
-        <button
-          onClick={goToNext}
-          className="hidden lg:block absolute -right-3 lg:-right-4 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-3 lg:p-2 shadow-lg transition-all duration-300 hover:scale-110"
-        >
-          <ChevronRight className="h-5 lg:h-4 w-5 lg:w-4 text-gray-700" />
-        </button>
+        {/* Desktop Navigation Arrows - показывать только если дизайнов больше одного */}
+        {designs.length > 1 && (
+          <>
+            <button
+              onClick={goToPrevious}
+              className="hidden lg:block absolute -left-3 lg:-left-4 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-3 lg:p-2 shadow-lg transition-all duration-300 hover:scale-110"
+            >
+              <ChevronLeft className="h-5 lg:h-4 w-5 lg:w-4 text-gray-700" />
+            </button>
+            
+            <button
+              onClick={goToNext}
+              className="hidden lg:block absolute -right-3 lg:-right-4 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-3 lg:p-2 shadow-lg transition-all duration-300 hover:scale-110"
+            >
+              <ChevronRight className="h-5 lg:h-4 w-5 lg:w-4 text-gray-700" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Design Info - Connected to design display */}
@@ -252,8 +269,11 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
                   </svg>
                 </div>
                 <span>{currentDesignCount > 0 ? 'Weitere hinzufügen' : 'Hinzufügen'}</span>
-                <div className="bg-white/20 rounded-full px-2 py-1 text-sm font-bold flex-shrink-0">
-                  €{currentDesignPrice.toFixed(2)}
+                <div className="bg-white rounded-full px-3 py-1 text-sm font-bold flex-shrink-0 shadow-md border">
+                  <FakeDiscountPriceDisplay 
+                    realPrice={currentDesignPriceData.originalPrice}
+                    compact={true}
+                  />
                 </div>
               </>
             )}
@@ -288,9 +308,14 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
                 {hasUvPrint && ' • UV-Druck'}
               </div>
               <div className="text-lg font-bold text-blue-800">
-                €{currentDesignPrice.toFixed(2)} pro Stück
+                <FakeDiscountPriceDisplay 
+                  realPrice={currentDesignPriceData.originalPrice}
+                  className=""
+                  showTimer={false}
+                />
+                <span className="text-sm"> pro Stück</span>
               </div>
-              <div className="text-sm text-green-700 font-medium mt-1">
+              <div className="text-sm text-white font-medium mt-1">
                 {currentDesignCount}x • €{(currentDesignPrice * currentDesignCount).toFixed(2)}
               </div>
             </div>
@@ -320,7 +345,13 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
             ) : (
               <>
                 <ShoppingCart className="h-5 w-5" />
-                <span>{currentDesignCount > 0 ? 'Weitere hinzufügen' : 'Hinzufügen'} - €{currentDesignPrice.toFixed(2)}</span>
+                <span>{currentDesignCount > 0 ? 'Weitere hinzufügen' : 'Hinzufügen'}</span>
+                <div className="bg-white rounded-full px-2 py-1 ml-2 shadow-md border">
+                  <FakeDiscountPriceDisplay 
+                    realPrice={currentDesignPriceData.originalPrice}
+                    compact={true}
+                  />
+                </div>
               </>
             )}
             
@@ -345,8 +376,15 @@ const DesignSelector: React.FC<DesignSelectorProps> = ({
                   <span className="text-green-800 font-bold">{currentDesignCount}x Hinzugefügt</span>
                 </div>
               </div>
-              <div className="text-xl font-bold text-green-800 mt-2">
+              <div className="text-xl font-bold text-white mt-2">
                 €{(currentDesignPrice * currentDesignCount).toFixed(2)}
+                <div className="text-sm text-gray-600 font-normal">
+                  {currentDesignPriceData.discountPercentage > 0 && (
+                    <span className="text-red">
+                      Gespart: €{(currentDesignPriceData.discountAmount * currentDesignCount).toFixed(2)}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           )}

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ShoppingCart, CreditCard, FileText, Edit3, Truck, Home, MapPin, Package, Eye, EyeOff, X } from 'lucide-react';
 import { ConfigurationState } from '../types/configurator';
-import { calculateSingleSignPrice, calculateDistance, getShippingInfo, calculateArea } from '../utils/calculations';
+import { calculateSingleSignPriceWithFakeDiscount, calculateDistance, getShippingInfo, calculateArea } from '../utils/calculations';
 import { mondayService } from '../services/mondayService';
 import SVGPreview from './SVGPreview';
 import StripeProvider from './StripeProvider';
 import StripeCheckoutForm from './StripeCheckoutForm';
 import PromoCodeInput from './PromoCodeInput';
-import { DiscountApplication } from '../services/discountService';
+import FakeDiscountPriceDisplay from './FakeDiscountPriceDisplay';
+import DiscountDisplay from './DiscountDisplay';
+import { DiscountApplication, discountService } from '../services/discountService';
 interface CartCheckoutProps {
   config: ConfigurationState;
   onConfigChange: (updates: Partial<ConfigurationState>) => void;
@@ -33,7 +35,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   const [appliedDiscount, setAppliedDiscount] = useState<DiscountApplication | null>(null);
 
   // Calculate current design price even if not in signs list
-  const currentDesignPrice = calculateSingleSignPrice(
+  const currentDesignPriceData = calculateSingleSignPriceWithFakeDiscount(
     config.selectedDesign,
     config.customWidth,
     config.calculatedHeight,
@@ -44,11 +46,11 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     config.expressProduction || false
     // Express production is NOT included in individual sign prices
   );
+  const currentDesignPrice = currentDesignPriceData.finalPrice;
 
   // Calculate individual sign prices
-  const signPrices = config.signs?.map(sign => ({
-    ...sign,
-    price: calculateSingleSignPrice(
+  const signPrices = config.signs?.map(sign => {
+    const priceData = calculateSingleSignPriceWithFakeDiscount(
       sign.design,
       sign.width,
       sign.height,
@@ -57,8 +59,13 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
       sign.hasUvPrint,
       sign.hasHangingSystem || false,
       sign.expressProduction || false
-    )
-  })) || [];
+    );
+    return {
+      ...sign,
+      price: priceData.finalPrice,
+      priceData: priceData
+    };
+  }) || [];
 
   // Calculate total: enabled signs + current design if not in list
   const isCurrentDesignInList = config.signs?.some(sign => sign.design.id === config.selectedDesign.id) || false;
@@ -101,6 +108,10 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
   const subtotal = subtotalBeforeDiscount - discountAmount;
   const tax = subtotal * 0.19;
   const gesamtpreis = subtotal + tax;
+
+  // Calculate final price with fake discount for display
+  const finalPriceData = discountService.calculateFakeDiscountPrice(gesamtpreis);
+  const displayTotalPrice = finalPriceData.finalPrice;
 
   // Handle discount application
   const handleDiscountApplied = (discountApplication: DiscountApplication | null) => {
@@ -157,6 +168,44 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
             </div>
           </div>
           
+          {/* Fake Discount Banner */}
+          {discountService.isFakeDiscountActive() && (
+            <div className="bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg p-4 mt-4 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg font-bold">🔥 LIMITIERTES ANGEBOT</span>
+                  <span className="bg-white/20 px-2 py-1 rounded-full text-sm font-medium">
+                    {discountService.getCurrentFakeDiscount()?.percentage}% Rabatt
+                  </span>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm opacity-90">Nur noch:</div>
+                  <div className="text-xl font-bold">
+                    {(() => {
+                      const discount = discountService.getCurrentFakeDiscount();
+                      if (!discount) return '00:00:00';
+                      
+                      const now = new Date();
+                      const end = new Date(discount.endDate);
+                      const diff = end.getTime() - now.getTime();
+                      
+                      if (diff <= 0) return '00:00:00';
+                      
+                      const hours = Math.floor(diff / (1000 * 60 * 60));
+                      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                      
+                      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    })()}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 text-sm opacity-90">
+                💎 Exklusives Angebot - Nur für kurze Zeit!
+              </div>
+            </div>
+          )}
+          
           <button
             onClick={onBackToDesign}
             className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
@@ -202,8 +251,15 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
                             </p>
                           </div>
                           <div className="text-right">
-                            <div className="text-xl font-bold text-gray-800">€{currentDesignPrice.toFixed(2)}</div>
-                            <div className="text-sm text-gray-500">pro Stück</div>
+                            <div className="flex flex-col items-end">
+                              <FakeDiscountPriceDisplay 
+                                realPrice={currentDesignPriceData.originalPrice}
+                                className="text-right"
+                                showTimer={false}
+                                compact={true}
+                              />
+                              <div className="text-xs text-gray-500 mt-0.5">pro Stück</div>
+                            </div>
                           </div>
                         </div>
                         
@@ -256,8 +312,15 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
                             </p>
                           </div>
                           <div className="text-right">
-                            <div className="text-xl font-bold text-gray-800">€{sign.price.toFixed(2)}</div>
-                            <div className="text-sm text-gray-500">pro Stück</div>
+                            <div className="flex flex-col items-end">
+                              <FakeDiscountPriceDisplay 
+                                realPrice={sign.priceData.originalPrice}
+                                className="text-right"
+                                showTimer={false}
+                                compact={true}
+                              />
+                              <div className="text-xs text-gray-500 mt-0.5">pro Stück</div>
+                            </div>
                           </div>
                         </div>
                         
@@ -440,7 +503,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
 
               {/* Discount Display */}
               {discountAmount > 0 && (
-                <div className="flex justify-between text-green-700">
+                <div className="flex justify-between text-white bg-gray-700">
                   <span>Rabatt ({appliedDiscount?.discount.name}):</span>
                   <span className="font-semibold">-€{discountAmount.toFixed(2)}</span>
                 </div>
@@ -458,7 +521,15 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
               
               <div className="flex justify-between text-xl font-bold text-gray-800 border-t pt-3">
                 <span>Preis:</span>
-                <span className="text-green-600">€{gesamtpreis.toFixed(2)}</span>
+                <div className="text-right">
+                  <FakeDiscountPriceDisplay 
+                    realPrice={gesamtpreis}
+                    className="text-right"
+                    showTimer={false}
+                    compact={true}
+                    textColor="text-green-600"
+                  />
+                </div>
               </div>
             </div>
 
@@ -501,7 +572,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
                 <span>
                   {isProcessingPayment ? 'Wird verarbeitet...' : 
                    !isConfirmed ? 'Bestätigung erforderlich' :
-                   `Jetzt bezahlen • €${gesamtpreis.toFixed(2)}`}
+                   `Jetzt bezahlen • €${displayTotalPrice.toFixed(2)}`}
                 </span>
               </button>
               
@@ -599,7 +670,15 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
                 </div>
                 <div className="border-t pt-1 mt-2 flex justify-between font-bold">
                   <span>Preis</span>
-                  <span>€{gesamtpreis.toFixed(2)}</span>
+                  <div className="text-right">
+                    <FakeDiscountPriceDisplay 
+                      realPrice={gesamtpreis}
+                      className="text-right"
+                      showTimer={false}
+                      compact={true}
+                      textColor="text-gray-800"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

@@ -24,10 +24,52 @@ interface DiscountApplication {
   reason?: string;
 }
 
+// Новые интерфейсы для системы фиктивных цен и таймеров
+export interface FakeDiscountConfiguration {
+  id: string;
+  name: string;
+  percentage: number; // Процент скидки (0-100)
+  startDate: Date;
+  endDate: Date;
+  isActive: boolean;
+}
+
+export interface PriceWithFakeDiscount {
+  originalPrice: number; // Реальная цена (то что мы хотим получить)
+  displayPrice: number;  // Фиктивная завышенная цена (показываем пользователю)
+  discountAmount: number; // Сумма скидки
+  finalPrice: number;     // Итоговая цена после скидки (= originalPrice)
+  discountPercentage: number;
+}
+
+export interface DiscountTimer {
+  isActive: boolean;
+  timeLeft: {
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+  };
+  totalSeconds: number;
+}
+
 class DiscountService {
   private cache: Discount[] = [];
   private lastCacheUpdate: Date | null = null;
   private readonly CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+
+  // Новые свойства для системы фиктивных скидок и таймеров
+  private currentFakeDiscount: FakeDiscountConfiguration | null = null;
+  private timerInterval: NodeJS.Timeout | null = null;
+  private onTimerUpdate: ((timer: DiscountTimer) => void) | null = null;
+  private lastFakeDiscountCheck: Date | null = null;
+  private readonly FAKE_DISCOUNT_CACHE_DURATION = 30 * 1000; // 30 секунд
+
+  constructor() {
+    // Загружаем текущую фиктивную скидку из базы данных
+    this.loadCurrentFakeDiscount();
+    this.startTimer();
+  }
 
   /**
    * Load active discounts from Supabase
@@ -316,6 +358,356 @@ class DiscountService {
       return Math.min(discount.discount_value, orderTotal);
     }
   }
+
+  /**
+   * Загружает текущую фиктивную скидку из базы данных
+   */
+  private async loadCurrentFakeDiscount(): Promise<void> {
+    try {
+      // Проверяем кеш
+      if (this.lastFakeDiscountCheck && 
+          (Date.now() - this.lastFakeDiscountCheck.getTime()) < this.FAKE_DISCOUNT_CACHE_DURATION) {
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts?select=*&is_active=eq.true&end_date=gte.${new Date().toISOString()}&order=created_at.desc&limit=1`,
+        {
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.length > 0) {
+          const discount = data[0];
+          this.currentFakeDiscount = {
+            id: discount.id.toString(),
+            name: discount.name,
+            percentage: discount.percentage,
+            startDate: new Date(discount.start_date),
+            endDate: new Date(discount.end_date),
+            isActive: discount.is_active,
+          };
+          
+          this.lastFakeDiscountCheck = new Date();
+          console.log('💰 Loaded fake discount from database:', this.currentFakeDiscount);
+          return;
+        }
+      } else if (response.status === 404) {
+        // Таблица не существует, используем localStorage как fallback
+        console.warn('⚠️ Таблица fake_discounts не найдена, используем localStorage как временное решение');
+        this.loadFromLocalStorage();
+        return;
+      }
+      
+      // Если ничего не найдено, устанавливаем дефолтную скидку
+      this.setDefaultFakeDiscount();
+      
+    } catch (error) {
+      console.warn('⚠️ Ошибка загрузки фиктивной скидки из БД, используем localStorage:', error);
+      this.loadFromLocalStorage();
+    }
+  }
+
+  /**
+   * Загружает фиктивную скидку из localStorage (fallback)
+   */
+  private loadFromLocalStorage(): void {
+    try {
+      const saved = localStorage.getItem('nontel_current_fake_discount');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        this.currentFakeDiscount = {
+          ...parsed,
+          startDate: new Date(parsed.startDate),
+          endDate: new Date(parsed.endDate),
+        };
+        console.log('💰 Loaded fake discount from localStorage:', this.currentFakeDiscount);
+      } else {
+        this.setDefaultFakeDiscount();
+      }
+    } catch (error) {
+      console.error('❌ Error loading fake discount from localStorage:', error);
+      this.setDefaultFakeDiscount();
+    }
+  }
+
+  /**
+   * Создает новую фиктивную скидку в базе данных
+   */
+  private async createDefaultFakeDiscount(): Promise<void> {
+    try {
+      const now = new Date();
+      const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 часа
+
+      const newDiscount = {
+        name: 'Flash Sale - Nur heute!',
+        percentage: 25,
+        start_date: now.toISOString(),
+        end_date: endTime.toISOString(),
+        is_active: true
+      };
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(newDiscount)
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const createdDiscount = data[0];
+
+      this.currentFakeDiscount = {
+        id: createdDiscount.id.toString(),
+        name: createdDiscount.name,
+        percentage: createdDiscount.percentage,
+        startDate: new Date(createdDiscount.start_date),
+        endDate: new Date(createdDiscount.end_date),
+        isActive: createdDiscount.is_active,
+      };
+
+      console.log('💰 New fake discount created in database:', this.currentFakeDiscount);
+    } catch (error) {
+      console.error('❌ Error creating fake discount in database:', error);
+      this.setDefaultFakeDiscount();
+    }
+  }
+
+  /**
+   * Устанавливает дефолтную фиктивную скидку (fallback)
+   */
+  private setDefaultFakeDiscount(): void {
+    const now = new Date();
+    const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 часа
+
+    this.currentFakeDiscount = {
+      id: 'default-fake-discount',
+      name: 'Limitiertes Angebot',
+      percentage: 25, // 25% скидка
+      startDate: now,
+      endDate: endTime,
+      isActive: true,
+    };
+  }
+
+  /**
+   * Устанавливает новую фиктивную скидку в базе данных
+   */
+  async setFakeDiscount(discount: Omit<FakeDiscountConfiguration, 'id'>): Promise<void> {
+    try {
+      // Сначала деактивируем все текущие скидки
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ is_active: false })
+        }
+      );
+
+      // Создаем новую скидку
+      const newDiscount = {
+        name: discount.name,
+        percentage: discount.percentage,
+        start_date: discount.startDate.toISOString(),
+        end_date: discount.endDate.toISOString(),
+        is_active: discount.isActive
+      };
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(newDiscount)
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const createdDiscount = data[0];
+
+      this.currentFakeDiscount = {
+        id: createdDiscount.id.toString(),
+        name: createdDiscount.name,
+        percentage: createdDiscount.percentage,
+        startDate: new Date(createdDiscount.start_date),
+        endDate: new Date(createdDiscount.end_date),
+        isActive: createdDiscount.is_active,
+      };
+
+      console.log('💰 New fake discount set in database:', this.currentFakeDiscount);
+    } catch (error) {
+      console.error('❌ Error setting fake discount in database:', error);
+      // Fallback к локальной версии
+      this.currentFakeDiscount = {
+        ...discount,
+        id: `fake-discount-${Date.now()}`,
+      };
+    }
+  }
+
+  /**
+   * Получает текущую фиктивную скидку
+   */
+  getCurrentFakeDiscount(): FakeDiscountConfiguration | null {
+    return this.currentFakeDiscount;
+  }
+
+  /**
+   * Проверяет, активна ли фиктивная скидка в данный момент
+   */
+  isFakeDiscountActive(): boolean {
+    if (!this.currentFakeDiscount || !this.currentFakeDiscount.isActive) {
+      return false;
+    }
+
+    const now = new Date();
+    return now >= this.currentFakeDiscount.startDate && now <= this.currentFakeDiscount.endDate;
+  }
+
+  /**
+   * Рассчитывает цену с учетом фиктивной скидки
+   */
+  calculateFakeDiscountPrice(realPrice: number): PriceWithFakeDiscount {
+    if (!this.isFakeDiscountActive() || !this.currentFakeDiscount) {
+      return {
+        originalPrice: realPrice,
+        displayPrice: realPrice,
+        discountAmount: 0,
+        finalPrice: realPrice,
+        discountPercentage: 0,
+      };
+    }
+
+    const percentage = this.currentFakeDiscount.percentage;
+    const discountAmount = (realPrice * percentage) / 100;
+    const displayPrice = realPrice + discountAmount;
+
+    return {
+      originalPrice: realPrice,
+      displayPrice: displayPrice,
+      discountAmount: discountAmount,
+      finalPrice: realPrice,
+      discountPercentage: percentage,
+    };
+  }
+
+  /**
+   * Получает таймер скидки
+   */
+  getDiscountTimer(): DiscountTimer {
+    if (!this.currentFakeDiscount || !this.isFakeDiscountActive()) {
+      return {
+        isActive: false,
+        timeLeft: { days: 0, hours: 0, minutes: 0, seconds: 0 },
+        totalSeconds: 0,
+      };
+    }
+
+    const now = new Date().getTime();
+    const endTime = this.currentFakeDiscount.endDate.getTime();
+    const totalSeconds = Math.max(0, Math.floor((endTime - now) / 1000));
+
+    if (totalSeconds <= 0) {
+      return {
+        isActive: false,
+        timeLeft: { days: 0, hours: 0, minutes: 0, seconds: 0 },
+        totalSeconds: 0,
+      };
+    }
+
+    const days = Math.floor(totalSeconds / (24 * 60 * 60));
+    const hours = Math.floor((totalSeconds % (24 * 60 * 60)) / (60 * 60));
+    const minutes = Math.floor((totalSeconds % (60 * 60)) / 60);
+    const seconds = totalSeconds % 60;
+
+    return {
+      isActive: true,
+      timeLeft: { days, hours, minutes, seconds },
+      totalSeconds,
+    };
+  }
+
+  /**
+   * Запускает таймер обновления скидки
+   */
+  private startTimer(): void {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+    }
+
+    this.timerInterval = setInterval(() => {
+      const timer = this.getDiscountTimer();
+      
+      // Если время истекло, перезагружаем скидки из базы
+      if (!timer.isActive && this.currentFakeDiscount) {
+        this.loadCurrentFakeDiscount();
+      }
+
+      // Уведомляем подписчиков об обновлении таймера
+      if (this.onTimerUpdate) {
+        this.onTimerUpdate(timer);
+      }
+    }, 1000);
+  }
+
+  /**
+   * Подписка на обновления таймера
+   */
+  onTimerChange(callback: (timer: DiscountTimer) => void): () => void {
+    this.onTimerUpdate = callback;
+    
+    // Возвращаем функцию отписки
+    return () => {
+      this.onTimerUpdate = null;
+    };
+  }
+}
+
+// Utility functions
+export function formatTimeLeft(timeLeft: { days: number; hours: number; minutes: number; seconds: number }): string {
+  const { days, hours, minutes, seconds } = timeLeft;
+  
+  if (days > 0) {
+    return `${days}д ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  } else {
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+}
+
+export function formatDiscount(percentage: number): string {
+  return `${percentage}% Rabatt`;
 }
 
 // Singleton instance

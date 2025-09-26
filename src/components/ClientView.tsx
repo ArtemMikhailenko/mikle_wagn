@@ -4,7 +4,7 @@ import CustomerHeaderClient from './CustomerHeaderClient';
 import MondayStatus from './MondayStatus';
 import { ConfigurationState } from '../types/configurator';
 import { MOCK_DESIGNS } from '../data/mockDesigns';
-import { calculateSingleSignPrice } from '../utils/calculations';
+import { calculateSingleSignPriceWithFakeDiscount } from '../utils/calculations';
 import NeonMockupStage from './NeonMockupStage';
 import mondayService from '../services/mondayService';
 import { crmService, CRMProjectData } from '../services/crmService';
@@ -42,7 +42,7 @@ export default function ClientView() {
   const currentPrice = useMemo(() => {
     if (!config.selectedDesign) return 0;
     
-    return calculateSingleSignPrice(
+    const priceData = calculateSingleSignPriceWithFakeDiscount(
       config.selectedDesign,
       config.customWidth,
       config.calculatedHeight,
@@ -52,6 +52,7 @@ export default function ClientView() {
       config.hasHangingSystem,
       config.includesInstallation // expressProduction
     );
+    return priceData.finalPrice;
   }, [
     config.selectedDesign,
     config.customWidth,

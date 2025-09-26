@@ -1,5 +1,6 @@
 import { NeonDesign, PricingComponents, PowerSupplyTier, PriceBreakdown, ConfigurationState, SignConfiguration } from '../types/configurator';
 import { optimizedMondayService } from '../services/optimizedMondayService';
+import { discountService, PriceWithFakeDiscount } from '../services/discountService';
 
 // Real pricing system using Monday.com data with smart caching
 let cachedPricing: PricingComponents | null = null;
@@ -278,6 +279,79 @@ function calculateBasicPrice(
   if (hasHangingSystem) total += 35;
   
   return Math.round(total * 100) / 100;
+}
+
+// ===========================================
+// ФУНКЦИИ ДЛЯ РАБОТЫ С ФИКТИВНЫМИ СКИДКАМИ
+// ===========================================
+
+/**
+ * Расчет цены с применением фиктивных скидок (асинхронная версия)
+ */
+export async function calculatePriceWithFakeDiscount(
+  design: NeonDesign | null,
+  customWidth: number,
+  customHeight: number,
+  isWaterproof: boolean = false,
+  isTwoPart: boolean = false,
+  hasUvPrint: boolean = false,
+  hasHangingSystem: boolean = false,
+  expressProduction: boolean = false
+): Promise<PriceWithFakeDiscount> {
+  // Рассчитываем реальную цену (та что мы хотим получить в итоге)
+  const realPrice = await calculateRealSingleSignPrice(
+    design, 
+    customWidth, 
+    customHeight, 
+    isWaterproof, 
+    isTwoPart, 
+    hasUvPrint, 
+    hasHangingSystem, 
+    expressProduction
+  );
+
+  // Применяем фиктивную скидку через сервис скидок
+  return discountService.calculateFakeDiscountPrice(realPrice);
+}
+
+/**
+ * Расчет цены с применением фиктивных скидок (синхронная версия)
+ */
+export function calculatePriceWithFakeDiscountSync(
+  design: NeonDesign | null,
+  customWidth: number,
+  customHeight: number,
+  isWaterproof: boolean = false,
+  isTwoPart: boolean = false,
+  hasUvPrint: boolean = false,
+  hasHangingSystem: boolean = false,
+  expressProduction: boolean = false
+): PriceWithFakeDiscount {
+  // Рассчитываем реальную цену (та что мы хотим получить в итоге)
+  const realPrice = calculateRealSingleSignPriceSync(
+    design, 
+    customWidth, 
+    customHeight, 
+    isWaterproof, 
+    isTwoPart, 
+    hasUvPrint, 
+    hasHangingSystem, 
+    expressProduction
+  );
+
+  // Применяем фиктивную скидку через сервис скидок
+  return discountService.calculateFakeDiscountPrice(realPrice);
+}
+
+/**
+ * Получает информацию о текущей скидке и оставшемся времени
+ */
+export function getCurrentDiscountInfo() {
+  return {
+    discount: discountService.getCurrentFakeDiscount(),
+    timer: discountService.getDiscountTimer(),
+    isActive: discountService.isFakeDiscountActive(),
+  };
 }
 
 /**

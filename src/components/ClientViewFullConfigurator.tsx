@@ -3,9 +3,10 @@ import { useParams } from 'react-router-dom';
 import CustomerHeaderClient from './CustomerHeaderClient';
 import MondayStatus from './MondayStatus';
 import ShippingCalculationPage from './ShippingCalculationPage';
+import CompactDiscountTimer from './CompactDiscountTimer';
 import { ConfigurationState, SignConfiguration } from '../types/configurator';
 import { MOCK_DESIGNS } from '../data/mockDesigns';
-import { calculateProportionalHeight, calculateSingleSignPrice } from '../utils/calculations';
+import { calculateProportionalHeight, calculateSingleSignPriceWithFakeDiscount } from '../utils/calculations';
 import NeonMockupStage from './NeonMockupStage';
 import { FileText, Ruler, Shield, Truck, Info, Scissors, Palette } from 'lucide-react';
 import mondayDirectService from '../services/mondayDirectService';
@@ -248,7 +249,7 @@ export default function ClientViewFullConfigurator() {
     sign.design.id === config.selectedDesign?.id
   ).length;
 
-  const currentDesignPrice = config.selectedDesign ? calculateSingleSignPrice(
+  const currentDesignPriceData = config.selectedDesign ? calculateSingleSignPriceWithFakeDiscount(
     config.selectedDesign,
     config.customWidth,
     config.calculatedHeight,
@@ -257,7 +258,8 @@ export default function ClientViewFullConfigurator() {
     config.hasUvPrint,
     config.hasHangingSystem,
     config.includesInstallation
-  ) : 0;
+  ) : { finalPrice: 0, originalPrice: 0, displayPrice: 0, discountAmount: 0, discountPercentage: 0 };
+  const currentDesignPrice = currentDesignPriceData.finalPrice;
 
   const cartItemCount = config.signs.length;
   const effectiveMaxWidth = config.isTwoPart ? 1000 : 300;
@@ -606,6 +608,16 @@ export default function ClientViewFullConfigurator() {
                     )}
                   </div>
                 </div>
+              </div>
+              
+              {/* Compact Discount Timer */}
+              <div className="mb-4">
+                <CompactDiscountTimer 
+                  className="w-full"
+                  onTimerEnd={() => {
+                    console.log('🔥 Discount timer ended!');
+                  }}
+                />
               </div>
               
               {/* Size Controls - Responsive */}

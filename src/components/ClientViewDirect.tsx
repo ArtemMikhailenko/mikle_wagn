@@ -8,7 +8,7 @@ import PricingCalculator from './PricingCalculator';
 import CartCheckout from './CartCheckout';
 import { ConfigurationState, SignConfiguration } from '../types/configurator';
 import { MOCK_DESIGNS } from '../data/mockDesigns';
-import { calculateProportionalHeight, calculateSingleSignPrice, calculateProportionalLedLength } from '../utils/calculations';
+import { calculateProportionalHeight, calculateSingleSignPriceWithFakeDiscount, calculateProportionalLedLength } from '../utils/calculations';
 import NeonMockupStage from './NeonMockupStage';
 import { ShoppingCart, X, ArrowLeft, ChevronLeft, ChevronRight, Settings, FileText, Ruler, Shield, Truck, Wrench, MapPin, Info, Scissors, Palette } from 'lucide-react';
 import { Edit3 } from 'lucide-react';
@@ -42,7 +42,7 @@ export default function ClientViewDirect() {
   const [uploadedSvgsByDesign, setUploadedSvgsByDesign] = useState<Record<string, string>>({});
   
   // Расчет цены
-  const currentPrice = config.selectedDesign ? calculateSingleSignPrice(
+  const currentPriceData = config.selectedDesign ? calculateSingleSignPriceWithFakeDiscount(
     config.selectedDesign,
     config.customWidth,
     config.calculatedHeight,
@@ -51,7 +51,8 @@ export default function ClientViewDirect() {
     config.hasUvPrint,
     config.hasHangingSystem,
     config.includesInstallation // expressProduction
-  ) : 0;
+  ) : { finalPrice: 0, originalPrice: 0, displayPrice: 0, discountAmount: 0, discountPercentage: 0 };
+  const currentPrice = currentPriceData.finalPrice;
 
   // Загрузка данных проекта из Monday.com напрямую
   useEffect(() => {
@@ -318,16 +319,16 @@ export default function ClientViewDirect() {
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Preis</label>
                 <div className="text-2xl font-bold text-green-600">
-                  €{calculateSingleSignPrice(
+                  €{calculateSingleSignPriceWithFakeDiscount(
                     config.selectedDesign,
                     config.customWidth,
                     config.calculatedHeight,
                     config.isWaterproof,
+                    false, // isTwoPart
                     config.hasUvPrint,
                     config.hasHangingSystem,
-                    false, // isTwoPart
                     false  // expressProduction
-                  ).toFixed(2)}
+                  ).finalPrice.toFixed(2)}
                 </div>
               </div>
             </div>

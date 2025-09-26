@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Edit3, Package, Home, MapPin, CreditCard, FileText, Minus, Plus, Ruler, Shield, Truck, Zap, Palette, Info, X } from 'lucide-react';
 import { ConfigurationState, SignConfiguration } from '../types/configurator';
-import { calculateSingleSignPrice, calculateArea, calculateDistance, getShippingInfo, calculateProportionalHeight, getRealCityName } from '../utils/calculations';
+import { calculateSingleSignPriceWithFakeDiscount, calculateArea, calculateDistance, getShippingInfo, calculateProportionalHeight, getRealCityName } from '../utils/calculations';
+import { calculatePriceWithFakeDiscountSync } from '../utils/realCalculations';
 import { mondayService } from '../services/mondayService';
 import SVGPreview from './SVGPreview';
 import StripeProvider from './StripeProvider';
 import StripeCheckoutForm from './StripeCheckoutForm';
 import PromoCodeInput from './PromoCodeInput';
+import DiscountTimer, { DiscountPriceDisplay } from './DiscountTimer';
 import { DiscountApplication } from '../services/discountService';
 
 interface ShippingCalculationPageProps {
@@ -29,10 +31,9 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<DiscountApplication | null>(null);
 
-  // Calculate individual sign prices
-  const signPrices = config.signs?.map(sign => ({
-    ...sign,
-    price: calculateSingleSignPrice(
+  // Calculate individual sign prices with fake discounts
+  const signPrices = config.signs?.map(sign => {
+    const priceWithDiscount = calculatePriceWithFakeDiscountSync(
       sign.design,
       sign.width,
       sign.height,
@@ -41,8 +42,14 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
       sign.hasUvPrint,
       sign.hasHangingSystem || false,
       sign.expressProduction || false
-    )
-  })) || [];
+    );
+    
+    return {
+      ...sign,
+      price: priceWithDiscount.finalPrice, // Финальная цена для расчетов
+      priceInfo: priceWithDiscount, // Полная информация о скидке для отображения
+    };
+  }) || [];
 
   // Calculate totals
   const enabledSignsTotal = signPrices
@@ -190,6 +197,15 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
           </button>
           <h1 className="text-2xl font-bold text-gray-800">Versand & Bestellung</h1>
           <div className="w-32"></div> {/* Spacer for centering */}
+        </div>
+        
+        {/* Discount Timer - Prominent in header */}
+        <div className="max-w-7xl mx-auto mt-4 px-4">
+          <DiscountTimer 
+            className="max-w-md mx-auto"
+            size="medium"
+            showProgress={true}
+          />
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Percent, Plus, Edit3, Trash2, Save, X } from 'lucide-react';
+import { Percent, Plus, Edit3, Trash2, Save, X, Timer, Clock, Play, Pause } from 'lucide-react';
+import { discountService, FakeDiscountConfiguration } from '../services/discountService';
 
 interface Discount {
   id?: number;
@@ -25,6 +26,15 @@ const DiscountAdminPanel: React.FC = () => {
   const [editingDiscount, setEditingDiscount] = useState<Discount | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState<string>('');
+  
+  // Состояние для фиктивных скидок
+  const [fakeDiscount, setFakeDiscount] = useState<FakeDiscountConfiguration | null>(null);
+  const [fakeDiscountForm, setFakeDiscountForm] = useState({
+    name: 'Распродажа дня!',
+    percentage: 25,
+    duration: 60, // минуты
+    isActive: false
+  });
 
   const emptyDiscount: Discount = {
     name: '',
@@ -43,7 +53,256 @@ const DiscountAdminPanel: React.FC = () => {
 
   useEffect(() => {
     loadDiscounts();
+    loadFakeDiscount();
   }, []);
+
+  const loadFakeDiscount = async () => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts?select=*&is_active=eq.true&end_date=gte.${new Date().toISOString()}&order=created_at.desc&limit=1`,
+        {
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.length > 0) {
+          const discount = data[0];
+          const fakeDiscount = {
+            id: discount.id.toString(),
+            name: discount.name,
+            percentage: discount.percentage,
+            startDate: new Date(discount.start_date),
+            endDate: new Date(discount.end_date),
+            isActive: discount.is_active,
+          };
+          setFakeDiscount(fakeDiscount);
+          
+          const now = new Date();
+          const isActive = now >= fakeDiscount.startDate && now <= fakeDiscount.endDate && fakeDiscount.isActive;
+          
+          setFakeDiscountForm({
+            name: fakeDiscount.name,
+            percentage: fakeDiscount.percentage,
+            duration: Math.max(1, Math.ceil((fakeDiscount.endDate.getTime() - now.getTime()) / (1000 * 60))),
+            isActive: isActive
+          });
+        } else {
+          setFakeDiscount(null);
+          setFakeDiscountForm({
+            name: 'Limitiertes Angebot',
+            percentage: 25,
+            duration: 60,
+            isActive: false
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading fake discount:', error);
+    }
+  };
+
+  const startFakeDiscount = async () => {
+    setLoading(true);
+    try {
+      const now = new Date();
+      const endDate = new Date();
+      endDate.setMinutes(endDate.getMinutes() + fakeDiscountForm.duration);
+
+      // Сначала деактивируем все существующие фиктивные скидки
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            is_active: false
+          })
+        }
+      );
+
+      // Создаем новую активную фиктивную скидку
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: fakeDiscountForm.name,
+            percentage: fakeDiscountForm.percentage,
+            start_date: now.toISOString(),
+            end_date: endDate.toISOString(),
+            is_active: true
+          })
+        }
+      );
+
+      if (response.ok) {
+        loadFakeDiscount();
+        setMessage('✅ Фиктивная скидка запущена!');
+      } else {
+        throw new Error('Failed to create fake discount');
+      }
+    } catch (error) {
+      console.error('Error starting fake discount:', error);
+      setMessage('❌ Ошибка запуска фиктивной скидки');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const stopFakeDiscount = async () => {
+    if (!fakeDiscount) return;
+    
+    setLoading(true);
+    try {
+      // Обновляем запись в базе данных
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts?id=eq.${fakeDiscount.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            is_active: false,
+            end_date: new Date().toISOString()
+          })
+        }
+      );
+
+      loadFakeDiscount();
+      setMessage('⏹️ Фиктивная скидка остановлена!');
+    } catch (error) {
+      console.error('Error stopping fake discount:', error);
+      setMessage('❌ Ошибка остановки фиктивной скидки');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const createFakeDiscountsTableIfNotExists = async () => {
+    setLoading(true);
+    setMessage('🔧 Проверяем существование таблицы фиктивных скидок...');
+    
+    try {
+      // Пробуем создать простую запись, чтобы проверить существует ли таблица
+      const testResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts?select=id&limit=1`,
+        {
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          }
+        }
+      );
+
+      if (testResponse.ok) {
+        setMessage('✅ Таблица фиктивных скидок уже существует!');
+        
+        // Если таблица существует, но пустая, создаем дефолтную скидку
+        const data = await testResponse.json();
+        if (data.length === 0) {
+          await createDefaultFakeDiscount();
+        }
+        loadFakeDiscount();
+      } else if (testResponse.status === 404) {
+        // Таблица не существует, показываем инструкции
+        setMessage(`
+❌ Таблица fake_discounts не найдена. 
+
+📋 Для создания таблицы выполните следующие шаги:
+
+1. Перейдите в Supabase Dashboard → SQL Editor
+2. Скопируйте и выполните SQL из файла: create_fake_discounts_table.sql
+3. Или скопируйте этот код:
+
+CREATE TABLE fake_discounts (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL DEFAULT 'Limitiertes Angebot',
+  percentage INTEGER NOT NULL CHECK (percentage > 0 AND percentage <= 50) DEFAULT 25,
+  start_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  end_date TIMESTAMPTZ NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE fake_discounts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access" ON fake_discounts FOR SELECT USING (true);
+CREATE POLICY "Allow public write access" ON fake_discounts FOR ALL USING (true);
+
+INSERT INTO fake_discounts (name, percentage, start_date, end_date, is_active)
+VALUES ('Flash Sale - Nur heute!', 25, NOW(), NOW() + INTERVAL '2 hours', true);
+
+4. После создания таблицы нажмите эту кнопку снова
+        `);
+        console.log('SQL файл находится в корне проекта: create_fake_discounts_table.sql');
+      } else {
+        throw new Error(`HTTP error! status: ${testResponse.status}`);
+      }
+    } catch (error) {
+      console.error('Error checking fake discounts table:', error);
+      setMessage(`❌ Ошибка подключения к базе данных. 
+      
+Проверьте:
+1. Настройки VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env файле
+2. Подключение к интернету
+3. Статус проекта Supabase`);
+    } finally {
+      setLoading(false);
+      setTimeout(() => setMessage(''), 15000); // Показываем дольше для инструкций
+    }
+  };
+
+  const createDefaultFakeDiscount = async () => {
+    const now = new Date();
+    const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 часа
+    
+    try {
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: 'Flash Sale - Nur heute!',
+            percentage: 25,
+            start_date: now.toISOString(),
+            end_date: endTime.toISOString(),
+            is_active: true
+          })
+        }
+      );
+      
+      setMessage('✅ Дефолтная фиктивная скидка создана!');
+      loadFakeDiscount();
+    } catch (error) {
+      console.error('Error creating default fake discount:', error);
+    }
+  };
 
   const loadDiscounts = async () => {
     setLoading(true);
@@ -280,6 +539,15 @@ const DiscountAdminPanel: React.FC = () => {
               <span>Создать таблицу</span>
             </button>
             <button
+              onClick={createFakeDiscountsTableIfNotExists}
+              disabled={loading}
+              className="flex items-center space-x-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+              title="Создать таблицу фиктивных скидок"
+            >
+              <span>⚡</span>
+              <span>Таблица фиктивных скидок</span>
+            </button>
+            <button
               onClick={startCreate}
               disabled={loading}
               className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
@@ -291,10 +559,87 @@ const DiscountAdminPanel: React.FC = () => {
         </div>
 
         {message && (
-          <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
-            <p className="text-blue-800">{message}</p>
+          <div className="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200">
+            <pre className="text-blue-800 text-sm whitespace-pre-wrap font-sans">{message}</pre>
           </div>
         )}
+
+        {/* Фиктивная скидка с таймером */}
+        <div className="mb-6 p-6 border border-orange-200 rounded-lg bg-orange-50">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <Timer className="h-5 w-5 mr-2 text-orange-600" />
+            Фиктивная скидка (Маркетинговая)
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Название
+              </label>
+              <input
+                type="text"
+                value={fakeDiscountForm.name}
+                onChange={(e) => setFakeDiscountForm({...fakeDiscountForm, name: e.target.value})}
+                className="w-full p-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Процент скидки
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={fakeDiscountForm.percentage}
+                onChange={(e) => setFakeDiscountForm({...fakeDiscountForm, percentage: parseInt(e.target.value) || 0})}
+                className="w-full p-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Длительность (мин)
+              </label>
+              <input
+                type="number"
+                min="5"
+                max="1440"
+                value={fakeDiscountForm.duration}
+                onChange={(e) => setFakeDiscountForm({...fakeDiscountForm, duration: parseInt(e.target.value) || 60})}
+                className="w-full p-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            
+            <div className="flex items-end">
+              {fakeDiscountForm.isActive ? (
+                <button
+                  onClick={stopFakeDiscount}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center justify-center space-x-2"
+                >
+                  <Pause className="h-4 w-4" />
+                  <span>Остановить</span>
+                </button>
+              ) : (
+                <button
+                  onClick={startFakeDiscount}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center justify-center space-x-2"
+                >
+                  <Play className="h-4 w-4" />
+                  <span>Запустить</span>
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {fakeDiscount && fakeDiscountForm.isActive && (
+            <div className="text-sm text-gray-600">
+              <p><strong>Статус:</strong> Активна до {fakeDiscount.endDate.toLocaleString()}</p>
+              <p><strong>Принцип:</strong> Цена завышается на {fakeDiscount.percentage}%, затем показывается как скидка</p>
+            </div>
+          )}
+        </div>
 
         {/* Form for creating/editing discount */}
         {showForm && editingDiscount && (

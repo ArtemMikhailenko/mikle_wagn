@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Percent, Tag, Clock, Gift } from 'lucide-react';
-import { discountService, Discount } from '../services/discountService';
+import { Percent, Tag, Clock, Gift, Timer } from 'lucide-react';
+import { discountService, Discount, FakeDiscountConfiguration } from '../services/discountService';
 
 interface DiscountDisplayProps {
   orderTotal?: number;
@@ -15,9 +15,11 @@ const DiscountDisplay: React.FC<DiscountDisplayProps> = ({
 }) => {
   const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fakeDiscount, setFakeDiscount] = useState<FakeDiscountConfiguration | null>(null);
 
   useEffect(() => {
     loadDiscounts();
+    loadFakeDiscount();
   }, [orderTotal]);
 
   const loadDiscounts = async () => {
@@ -34,6 +36,15 @@ const DiscountDisplay: React.FC<DiscountDisplayProps> = ({
       console.error('Error loading discounts:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadFakeDiscount = () => {
+    const currentFakeDiscount = discountService.getCurrentFakeDiscount();
+    if (currentFakeDiscount && discountService.isFakeDiscountActive()) {
+      setFakeDiscount(currentFakeDiscount);
+    } else {
+      setFakeDiscount(null);
     }
   };
 
@@ -81,7 +92,7 @@ const DiscountDisplay: React.FC<DiscountDisplayProps> = ({
     );
   }
 
-  if (discounts.length === 0) {
+  if (discounts.length === 0 && !fakeDiscount) {
     return null;
   }
 
@@ -92,7 +103,45 @@ const DiscountDisplay: React.FC<DiscountDisplayProps> = ({
         Доступные скидки
       </h3>
       
+      {/* Фиктивная скидка с таймером */}
+      {fakeDiscount && (
+        <div className="p-4 rounded-lg border bg-gradient-to-r from-red-50 to-orange-50 border-red-200">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center space-x-2 mb-1">
+                <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                  <Timer className="h-3 w-3" />
+                  <span>{fakeDiscount.percentage}%</span>
+                </div>
+                
+                <div className="flex items-center space-x-1 px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs">
+                  <Clock className="h-3 w-3" />
+                  <span>Ограниченное время!</span>
+                </div>
+              </div>
+              
+              <h4 className="font-medium text-gray-900">{fakeDiscount.name}</h4>
+              <p className="text-sm text-gray-600 mt-1">
+                Специальное предложение действует только сегодня!
+              </p>
+            </div>
+            
+            {orderTotal && (
+              <div className="text-right">
+                <div className="text-lg font-bold text-red-600">
+                  -€{((orderTotal * fakeDiscount.percentage) / 100).toFixed(2)}
+                </div>
+                <div className="text-xs text-gray-500">
+                  экономия
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
       <div className="space-y-2">
+        {/* Обычные скидки по промокодам */}
         {discounts.map((discount) => {
           const isApplicable = isDiscountApplicable(discount);
           const potentialSavings = calculatePotentialSavings(discount);

@@ -18,6 +18,14 @@ export interface CRMProjectData {
   created_at: string;
   updated_at?: string;
   mondayId?: string;
+  // Добавим размеры из Monday.com
+  originalWidth?: number;
+  originalHeight?: number;
+  ledLength?: number;
+  elements?: number;
+  // Добавим настройки UV и водонепроницаемости из Monday.com
+  hasUvPrint?: boolean;
+  isWaterproof?: boolean;
 }
 
 export interface SyncResult {
@@ -57,7 +65,12 @@ class DirectCRMService {
           status: status,
           created_at: design.createdAt || new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          mondayId: mondayId
+          mondayId: mondayId,
+          // Передаем реальные размеры из Monday.com
+          originalWidth: design.originalWidth,
+          originalHeight: design.originalHeight,
+          ledLength: design.ledLength,
+          elements: design.elements
         };
       });
 
@@ -98,7 +111,15 @@ class DirectCRMService {
         status: status,
         created_at: design.createdAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        mondayId: mondayId
+        mondayId: mondayId,
+        // Передаем реальные размеры из Monday.com
+        originalWidth: design.originalWidth,
+        originalHeight: design.originalHeight,
+        ledLength: design.ledLength,
+        elements: design.elements,
+        // Передаем настройки UV и водонепроницаемости из Monday.com
+        hasUvPrint: design.hasUvPrint,
+        isWaterproof: design.isWaterproof
       };
     } catch (error) {
       console.error('❌ Error loading project from Monday.com:', error);
@@ -112,6 +133,110 @@ class DirectCRMService {
       return await mondayDirectService.getMockupForProject(projectId);
     } catch (error) {
       console.error('❌ Error loading mockup from Monday.com:', error);
+      return null;
+    }
+  }
+
+  // Загрузить SVG содержимое по URL
+  async loadSvgContent(svgUrl: string): Promise<string | null> {
+    try {
+      console.log('🔄 Loading SVG content from URL:', svgUrl);
+      
+      // Метод 1: Прямая загрузка через fetch
+      try {
+        const response = await fetch(svgUrl, {
+          method: 'GET',
+          mode: 'cors',
+          headers: {
+            'Accept': 'image/svg+xml,text/plain,*/*'
+          }
+        });
+        
+        if (response.ok) {
+          const svgContent = await response.text();
+          console.log('✅ SVG content loaded via fetch, length:', svgContent.length);
+          
+          if (svgContent.includes('<svg') || svgContent.includes('<?xml')) {
+            return svgContent;
+          }
+        }
+      } catch (fetchError) {
+        console.log('⚠️ Fetch failed, trying proxy method:', fetchError instanceof Error ? fetchError.message : 'Unknown error');
+      }
+
+      // Метод 2: Загрузка через proxy сервер для обхода CORS
+      try {
+        const proxyUrl = `http://localhost:3001/proxy-svg?url=${encodeURIComponent(svgUrl)}`;
+        console.log('🌐 Trying proxy URL:', proxyUrl);
+        
+        const response = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'image/svg+xml,text/plain,*/*'
+          }
+        });
+        
+        if (response.ok) {
+          const svgContent = await response.text();
+          console.log('✅ SVG content loaded via proxy, length:', svgContent.length);
+          
+          if (svgContent.includes('<svg') || svgContent.includes('<?xml')) {
+            return svgContent;
+          }
+        } else {
+          console.log('❌ Proxy response not ok:', response.status, response.statusText);
+        }
+      } catch (proxyError) {
+        console.log('⚠️ Proxy method failed:', proxyError instanceof Error ? proxyError.message : 'Unknown error');
+      }
+
+      // Метод 3: Загрузка через img элемент и canvas (последний резерв)
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = async () => {
+          try {
+            // Создаем canvas для получения данных изображения
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              
+              // Если это SVG, пытаемся получить оригинальный источник
+              // Но так как это растровое изображение, создаем простой SVG wrapper
+              const svgWrapper = `
+                <svg width="${img.naturalWidth}" height="${img.naturalHeight}" xmlns="http://www.w3.org/2000/svg">
+                  <image href="${svgUrl}" width="${img.naturalWidth}" height="${img.naturalHeight}"/>
+                </svg>
+              `;
+              
+              console.log('✅ Created SVG wrapper for image');
+              resolve(svgWrapper);
+            } else {
+              console.warn('⚠️ Could not create canvas context');
+              resolve(null);
+            }
+          } catch (error) {
+            console.error('❌ Error processing image:', error);
+            resolve(null);
+          }
+        };
+        
+        img.onerror = () => {
+          console.error('❌ Could not load image from URL');
+          resolve(null);
+        };
+        
+        img.src = svgUrl;
+      });
+      
+    } catch (error) {
+      console.error('❌ Error loading SVG content:', error);
       return null;
     }
   }
@@ -160,10 +285,10 @@ class DirectCRMService {
     return {
       id: project.project_id,
       name: project.design_name,
-      originalWidth: 100, // default
-      originalHeight: 30, // default
-      elements: 1,
-      ledLength: 3.0,
+      originalWidth: project.originalWidth || 100, // Используем реальную ширину из Monday.com
+      originalHeight: project.originalHeight || 30, // Используем реальную высоту из Monday.com
+      elements: project.elements || 1,
+      ledLength: project.ledLength || 3.0,
       mockupUrl: project.mockup_url || '',
       description: project.notes || '',
       svgContent: project.svg_content,
@@ -176,7 +301,7 @@ class DirectCRMService {
   // Создать клиентскую ссылку
   generateClientLink(projectId: string): string {
     const baseUrl = window.location.origin;
-    return `${baseUrl}/client/${projectId}`;
+    return `${baseUrl}/project/${projectId}`;
   }
 
   // Проверить доступность Monday.com API

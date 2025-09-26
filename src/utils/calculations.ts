@@ -1,5 +1,7 @@
 import { NeonDesign, PricingComponents, PowerSupplyTier, PriceBreakdown, ConfigurationState, SignConfiguration } from '../types/configurator';
 import { optimizedMondayService } from '../services/optimizedMondayService';
+import mondayService from '../services/mondayService';
+import { discountService, PriceWithFakeDiscount } from '../services/discountService';
 
 // Comprehensive pricing system using real Monday.com data with smart caching
 export const getPricing = async (): Promise<PricingComponents> => {
@@ -171,7 +173,7 @@ async function geocodePostalCode(postalCode: string): Promise<{ lat: number; lng
       displayName: data[0].display_name || data[0].name || `Stadt ${postalCode}`
     };
   } catch (error) {
-    if (error?.name === 'AbortError') {
+    if (error instanceof Error && error.name === 'AbortError') {
       console.warn('Geocoding timeout nach 5 Sekunden für PLZ:', postalCode);
     } else {
       console.warn('Geocoding service error:', error);
@@ -317,7 +319,7 @@ export async function calculateRealDistance(fromPostalCode: string, toPostalCode
       route: route.geometry
     };
   } catch (error) {
-    if (error?.message === 'API Timeout') {
+    if (error instanceof Error && error.message === 'API Timeout') {
       console.warn('API Timeout nach 8 Sekunden, verwende Fallback-Berechnung');
     } else {
       console.warn('Real distance calculation failed, using fallback:', error);
@@ -532,7 +534,36 @@ export function requiresSpecialShipping(widthCm: number, heightCm: number): bool
 }
 
 /**
- * Calculate price for a single sign configuration
+ * Calculate price for a single sign configuration WITH fake discount display
+ */
+export function calculateSingleSignPriceWithFakeDiscount(
+  design: NeonDesign | null,
+  customWidth: number,
+  customHeight: number,
+  isWaterproof: boolean = false,
+  isTwoPart: boolean = false,
+  hasUvPrint: boolean = false,
+  hasHangingSystem: boolean = false,
+  expressProduction: boolean = false
+): PriceWithFakeDiscount {
+  // Сначала рассчитываем реальную цену
+  const realPrice = calculateSingleSignPrice(
+    design,
+    customWidth,
+    customHeight,
+    isWaterproof,
+    isTwoPart,
+    hasUvPrint,
+    hasHangingSystem,
+    expressProduction
+  );
+
+  // Применяем фиктивную скидку
+  return discountService.calculateFakeDiscountPrice(realPrice);
+}
+
+/**
+ * Calculate price for a single sign configuration (original function - real price)
  */
 export function calculateSingleSignPrice(
   design: NeonDesign | null,

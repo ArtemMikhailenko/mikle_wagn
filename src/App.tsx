@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import CustomerHeader from './components/CustomerHeader';
 import MondayStatus from './components/MondayStatus';
 import ConfigurationPanel from './components/ConfigurationPanel';
 import DesignSelector from './components/DesignSelector';
 import PricingCalculator from './components/PricingCalculator';
+import DiscountTimer, { InlineDiscountPrice, CompactDiscountTimer } from './components/DiscountTimer';
 import CartCheckout from './components/CartCheckout';
 import LoginPage from './components/auth/LoginPage';
 import SignupPage from './components/auth/SignupPage';
@@ -19,7 +20,8 @@ import ZahlungVersandPage from './components/legal/ZahlungVersandPage';
 import ImpressumPage from './components/legal/ImpressumPage';
 import { ConfigurationState, SignConfiguration } from './types/configurator';
 import { MOCK_DESIGNS } from './data/mockDesigns';
-import { calculateProportionalHeight, calculateSingleSignPrice, calculateProportionalLedLength } from './utils/calculations';
+import { calculateProportionalHeight, calculateSingleSignPriceWithFakeDiscount, calculateProportionalLedLength } from './utils/calculations';
+import { calculatePriceWithFakeDiscountSync, getCurrentDiscountInfo } from './utils/realCalculations';
 import NeonMockupStage from './components/NeonMockupStage';
 import { ShoppingCart, X, ArrowLeft, ChevronLeft, ChevronRight, Settings, FileText, Ruler, Shield, Truck, Wrench, MapPin, Info, Scissors, Palette } from 'lucide-react';
 import { Edit3 } from 'lucide-react';
@@ -37,6 +39,7 @@ import MondayBoardAnalyzer from './components/MondayBoardAnalyzer';
 import AdminDashboard from './components/AdminDashboard';
 import mondayService from './services/mondayService';
 import makeService from './services/makeService';
+import directCrmService from './services/directCrmService';
 import ClientViewFullConfigurator from './components/ClientViewFullConfigurator';
 import DebugProject from './components/DebugProject';
 
@@ -119,6 +122,7 @@ function App() {
         <Route path="/test/stripe" element={<StripeTestPage />} />
         {/* Client view for CRM links */}
         <Route path="/client/:projectId" element={<ClientViewFullConfigurator />} />
+        <Route path="/project/:projectId" element={<NeonConfiguratorWithProject />} />
         <Route path="/debug/:projectId" element={<DebugProject />} />
         <Route path="/" element={<NeonConfiguratorApp />} />
       </Routes>
@@ -126,7 +130,7 @@ function App() {
   );
 }
 
-function NeonConfiguratorApp() {
+function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
   const [neonOn, setNeonOn] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -209,6 +213,157 @@ function NeonConfiguratorApp() {
     loadDesigns();
   }, []);
 
+  // Initialize project data when provided
+  useEffect(() => {
+    if (projectData && availableDesigns.length > 0) {
+      console.log('🔄 Initializing with project data:', projectData.design_name);
+      console.log('📋 Project details:', {
+        svg_content: !!projectData.svg_content,
+        svg_url: !!projectData.svg_url,
+        mockup_url: !!projectData.mockup_url,
+        mockup_content: !!projectData.mockup_content,
+        originalWidth: projectData.originalWidth,
+        originalHeight: projectData.originalHeight,
+        ledLength: projectData.ledLength,
+        hasUvPrint: projectData.hasUvPrint,
+        isWaterproof: projectData.isWaterproof
+      });
+      
+      // Try to find the design from Monday.com data
+      let projectDesign = availableDesigns.find(design => 
+        design.name === projectData.design_name || design.id === projectData.project_id
+      );
+      
+      // If not found, create a basic design object
+      if (!projectDesign) {
+        projectDesign = {
+          id: projectData.project_id,
+          name: projectData.design_name || 'Custom Project',
+          originalWidth: projectData.originalWidth || 100,
+          originalHeight: projectData.originalHeight || 30,
+          elements: projectData.elements || 1,
+          ledLength: projectData.ledLength || 3.0,
+          mockupUrl: projectData.mockup_url || '',
+          description: projectData.notes || '',
+          svgContent: projectData.svg_content,
+          svgUrl: projectData.svg_url,
+          hasCustomSvg: !!projectData.svg_content,
+          createdAt: projectData.created_at,
+          // Настройки из Monday.com
+          hasUvPrint: projectData.hasUvPrint,
+          isWaterproof: projectData.isWaterproof,
+        };
+        
+        // Add to available designs
+        setAvailableDesigns(prev => [projectDesign!, ...prev]);
+      } else {
+        // Update existing design with project data
+        projectDesign = {
+          ...projectDesign,
+          originalWidth: projectData.originalWidth || projectDesign.originalWidth,
+          originalHeight: projectData.originalHeight || projectDesign.originalHeight,
+          elements: projectData.elements || projectDesign.elements,
+          ledLength: projectData.ledLength || projectDesign.ledLength,
+          mockupUrl: projectData.mockup_url || projectDesign.mockupUrl,
+          svgContent: projectData.svg_content || projectDesign.svgContent,
+          svgUrl: projectData.svg_url || projectDesign.svgUrl,
+          hasCustomSvg: !!projectData.svg_content || projectDesign.hasCustomSvg,
+          // Обновляем настройки из Monday.com
+          hasUvPrint: projectData.hasUvPrint !== undefined ? projectData.hasUvPrint : projectDesign.hasUvPrint,
+          isWaterproof: projectData.isWaterproof !== undefined ? projectData.isWaterproof : projectDesign.isWaterproof,
+        };
+        
+        // Update the design in availableDesigns
+        setAvailableDesigns(prev => 
+          prev.map(design => 
+            design.id === projectDesign!.id ? projectDesign! : design
+          )
+        );
+        
+        console.log('🔄 Updated existing design with CRM data:', {
+          id: projectDesign.id,
+          name: projectDesign.name,
+          svgUrl: projectDesign.svgUrl || 'none',
+          mockupUrl: projectDesign.mockupUrl || 'none'
+        });
+      }
+      
+      // Используем реальную ширину из Monday.com для конфигурации
+      const projectWidth = projectData.originalWidth || 200;
+      const calculatedHeight = calculateProportionalHeight(
+        projectDesign.originalWidth,
+        projectDesign.originalHeight,
+        projectWidth
+      );
+      
+      // Set as selected design
+      setConfig(prev => ({
+        ...prev,
+        selectedDesign: projectDesign,
+        customWidth: projectWidth, // Используем реальную ширину
+        calculatedHeight: calculatedHeight,
+        // Используем настройки из Monday.com
+        hasUvPrint: projectData.hasUvPrint !== undefined ? projectData.hasUvPrint : prev.hasUvPrint,
+        isWaterproof: projectData.isWaterproof !== undefined ? projectData.isWaterproof : prev.isWaterproof,
+      }));
+      
+      console.log('🔧 Setting config with design:', {
+        designId: projectDesign.id,
+        designName: projectDesign.name,
+        svgUrl: projectDesign.svgUrl || 'none',
+        customWidth: projectWidth,
+        calculatedHeight,
+        hasUvPrint: projectData.hasUvPrint,
+        isWaterproof: projectData.isWaterproof,
+        settingsSource: 'Monday.com',
+        // Добавим детальную отладку
+        projectDataHasUvPrint: projectData.hasUvPrint,
+        projectDataHasUvPrintType: typeof projectData.hasUvPrint,
+        projectDataIsWaterproof: projectData.isWaterproof,
+        projectDataIsWaterproofType: typeof projectData.isWaterproof,
+        prevConfigHasUvPrint: config.hasUvPrint,
+        prevConfigIsWaterproof: config.isWaterproof
+      });
+      
+      // Add SVG content if available
+      if (projectData.svg_content) {
+        console.log('🎨 Setting SVG content for design:', projectDesign.id);
+        setUploadedSvgsByDesign(prev => ({
+          ...prev,
+          [projectDesign.id]: projectData.svg_content
+        }));
+        
+        // Очищаем SVG URL в дизайне чтобы избежать дублирования
+        projectDesign.svgUrl = undefined;
+        console.log('🗑️ Cleared SVG URL from design to avoid duplication since we have content');
+        
+        // Принудительно включаем неон для CRM проектов и сбрасываем isResizing
+        setTimeout(() => {
+          console.log('⚡ Forcing neon ON for CRM project and clearing resize state');
+          setIsResizing(false);
+          setNeonOn(true);
+        }, 100);
+      }
+      
+      console.log('✅ Project initialization completed');
+      console.log('🔧 Final config:', {
+        selectedDesign: projectDesign.name,
+        customWidth: projectWidth,
+        calculatedHeight,
+        hasUvPrint: projectData.hasUvPrint,
+        isWaterproof: projectData.isWaterproof,
+        settingsFromMondaycom: `UV: ${projectData.hasUvPrint}, Waterproof: ${projectData.isWaterproof}`,
+        originalWidth: projectDesign.originalWidth,
+        originalHeight: projectDesign.originalHeight,
+        svgUrl: projectDesign.svgUrl || 'none',
+        hasSvgContent: !!projectData.svg_content,
+        // Добавим проверку финальных настроек
+        finalHasUvPrint: projectData.hasUvPrint !== undefined ? projectData.hasUvPrint : config.hasUvPrint,
+        finalIsWaterproof: projectData.isWaterproof !== undefined ? projectData.isWaterproof : config.isWaterproof,
+      });
+    }
+  }, [projectData?.project_id, availableDesigns.length]); // Используем только project_id и длину массива как зависимость
+
   // Update height when design or width changes
   useEffect(() => {
     const newHeight = calculateProportionalHeight(
@@ -235,6 +390,34 @@ function NeonConfiguratorApp() {
       }));
     }
   }, [config.selectedDesign, settingsByDesign]);
+
+  // Debug useEffect для отслеживания передачи параметров в NeonMockupStage
+  useEffect(() => {
+    // Используем реальную длину LED из Monday.com, если доступна
+    const realLedLength = config.selectedDesign.ledLength; // в метрах
+    const fallbackLedLength = ((config.customWidth + config.calculatedHeight) * 2) / 100; // Периметр в метрах
+    const actualLedLength = realLedLength || fallbackLedLength;
+    const designMaxSide = Math.max(config.customWidth, config.calculatedHeight); // Максимальная сторона для масштабирования
+    
+    console.log('📤 App.tsx: NeonMockupStage parameters:', {
+      lengthCm: designMaxSide, // Максимальная сторона дизайна для масштабирования
+      width: config.customWidth,
+      height: config.calculatedHeight,
+      designMaxSide: designMaxSide,
+      realLedLength: realLedLength,
+      fallbackLedLength: fallbackLedLength,
+      actualLedLengthMeters: actualLedLength,
+      neonOn: neonOn && !isResizing,
+      isResizing,
+      actualNeonOn: neonOn,
+      hasSvgContent: !!(uploadedSvgsByDesign[config.selectedDesign.id]),
+      hasCustomMockup: !!config.selectedDesign.mockupUrl,
+      hasSvgUrl: !!config.selectedDesign.svgUrl,
+      svgUrl: config.selectedDesign.svgUrl || 'none',
+      designName: config.selectedDesign.name,
+      selectedDesignId: config.selectedDesign.id
+    });
+  }, [config.customWidth, config.calculatedHeight, config.selectedDesign, neonOn, isResizing, uploadedSvgsByDesign]);
 
   const handleConfigChange = (updates: Partial<ConfigurationState>) => {
     console.log('🔧 Config change:', updates);
@@ -438,15 +621,23 @@ function NeonConfiguratorApp() {
   const isCurrentDesignAdded = currentDesignCount > 0;
   // Customer data (would come from URL params or API in real implementation)
   const customerData = {
-    name: "Müller GmbH & Co. KG",
+    name: projectData ? (projectData.client_name || projectData.design_name) : "Müller GmbH & Co. KG",
     logo: "/Logo Long White.png",
-    orderToken: "neon-order-8f4e2d1a-b3c5-4d6e-7f8g-9h0i1j2k3l4m",
+    orderToken: projectData ? `project-${projectData.id}` : "neon-order-8f4e2d1a-b3c5-4d6e-7f8g-9h0i1j2k3l4m",
   };
   
   // Calculate current design price for mobile cart
   const currentDesignPrice = React.useMemo(() => {
-    console.log('📱 Mobile cart price calculation with hasUvPrint:', config.hasUvPrint, 'hasHangingSystem:', config.hasHangingSystem);
-    const basePrice = calculateSingleSignPrice(
+    console.log('� Price calculation triggered with config:', {
+      hasUvPrint: config.hasUvPrint,
+      isWaterproof: config.isWaterproof,
+      hasHangingSystem: config.hasHangingSystem,
+      designName: config.selectedDesign.name,
+      customWidth: config.customWidth,
+      timestamp: new Date().toISOString()
+    });
+    // Используем новую функцию с фиктивными скидками
+    const priceWithDiscount = calculatePriceWithFakeDiscountSync(
       config.selectedDesign,
       config.customWidth,
       config.calculatedHeight,
@@ -457,7 +648,22 @@ function NeonConfiguratorApp() {
       config.expressProduction || false
     );
     
-    return basePrice;
+    // Возвращаем финальную цену для обратной совместимости
+    return priceWithDiscount.finalPrice;
+  }, [config.selectedDesign, config.customWidth, config.calculatedHeight, config.isWaterproof, config.isTwoPart, config.hasUvPrint, config.hasHangingSystem, config.expressProduction]);
+
+  // Получаем полную информацию о цене со скидкой для отображения
+  const fullPriceInfo = React.useMemo(() => {
+    return calculatePriceWithFakeDiscountSync(
+      config.selectedDesign,
+      config.customWidth,
+      config.calculatedHeight,
+      config.isWaterproof,
+      config.isTwoPart || false,
+      config.hasUvPrint,
+      config.hasHangingSystem || false,
+      config.expressProduction || false
+    );
   }, [config.selectedDesign, config.customWidth, config.calculatedHeight, config.isWaterproof, config.isTwoPart, config.hasUvPrint, config.hasHangingSystem, config.expressProduction]);
   
   // Calculate total items in cart
@@ -582,11 +788,13 @@ function NeonConfiguratorApp() {
               <div className="absolute inset-2 rounded-xl bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 animate-pulse pointer-events-none z-10"></div>
               
               <NeonMockupStage
-                lengthCm={config.customWidth}
+                lengthCm={Math.max(config.customWidth, config.calculatedHeight)} // Максимальная сторона дизайна в см
                 waterproof={config.isWaterproof}
                 uvOn={!!config.hasUvPrint}
                 neonOn={neonOn && !isResizing}
                 currentSvgContent={uploadedSvgsByDesign[config.selectedDesign.id] || null}
+                customMockupUrl={config.selectedDesign.mockupUrl || undefined}
+                svgImageUrl={config.selectedDesign.svgUrl || undefined}
                 onSvgUpload={(svgContent) => {
                   if (svgContent) {
                     setUploadedSvgsByDesign(prev => ({
@@ -603,42 +811,49 @@ function NeonConfiguratorApp() {
                 }}
               />
               
-              <button
-                onClick={() => {
-                  const currentIndex = availableDesigns.findIndex(d => d.id === config.selectedDesign.id);
-                  const prevIndex = currentIndex > 0 ? currentIndex - 1 : availableDesigns.length - 1;
-                  handleDesignChange(availableDesigns[prevIndex]);
-                }}
-                className="absolute left-2 sm:left-6 top-1/2 transform -translate-y-1/2 transition-all duration-300"
-              >
-                <ChevronLeft className="h-8 w-4 sm:h-12 sm:w-6 text-white drop-shadow-lg" />
-              </button>
-              
-              <button
-                onClick={() => {
-                  const currentIndex = availableDesigns.findIndex(d => d.id === config.selectedDesign.id);
-                  const nextIndex = currentIndex < availableDesigns.length - 1 ? currentIndex + 1 : 0;
-                  handleDesignChange(availableDesigns[nextIndex]);
-                }}
-                className="absolute right-2 sm:right-6 top-1/2 transform -translate-y-1/2 transition-all duration-300"
-              >
-                <ChevronRight className="h-8 w-4 sm:h-12 sm:w-6 text-white drop-shadow-lg" />
-              </button>
-              
-              {/* Design Indicators */}
-              <div className="absolute bottom-4 sm:bottom-6 left-1/2 transform -translate-x-1/2 flex space-x-2 sm:space-x-3">
-                {availableDesigns.map((_, index) => (
+              {/* Navigation arrows - показывать только если дизайнов больше одного */}
+              {availableDesigns.length > 1 && (
+                <>
                   <button
-                    key={index}
-                    onClick={() => handleDesignChange(availableDesigns[index])}
-                    className={`w-3 h-3 sm:w-4 sm:h-4 rounded-full transition-all duration-300 border-2 border-white/50 ${
-                      index === availableDesigns.findIndex(d => d.id === config.selectedDesign.id)
-                        ? 'bg-white shadow-lg shadow-white/50 scale-125'
-                        : 'bg-white/30 hover:bg-white/60 backdrop-blur-sm'
-                    }`}
-                  />
-                ))}
-              </div>
+                    onClick={() => {
+                      const currentIndex = availableDesigns.findIndex(d => d.id === config.selectedDesign.id);
+                      const prevIndex = currentIndex > 0 ? currentIndex - 1 : availableDesigns.length - 1;
+                      handleDesignChange(availableDesigns[prevIndex]);
+                    }}
+                    className="absolute left-2 sm:left-6 top-1/2 transform -translate-y-1/2 transition-all duration-300"
+                  >
+                    <ChevronLeft className="h-8 w-4 sm:h-12 sm:w-6 text-white drop-shadow-lg" />
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      const currentIndex = availableDesigns.findIndex(d => d.id === config.selectedDesign.id);
+                      const nextIndex = currentIndex < availableDesigns.length - 1 ? currentIndex + 1 : 0;
+                      handleDesignChange(availableDesigns[nextIndex]);
+                    }}
+                    className="absolute right-2 sm:right-6 top-1/2 transform -translate-y-1/2 transition-all duration-300"
+                  >
+                    <ChevronRight className="h-8 w-4 sm:h-12 sm:w-6 text-white drop-shadow-lg" />
+                  </button>
+                </>
+              )}
+              
+              {/* Design Indicators - показывать только если дизайнов больше одного */}
+              {availableDesigns.length > 1 && (
+                <div className="absolute bottom-4 sm:bottom-6 left-1/2 transform -translate-x-1/2 flex space-x-2 sm:space-x-3">
+                  {availableDesigns.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleDesignChange(availableDesigns[index])}
+                      className={`w-3 h-3 sm:w-4 sm:h-4 rounded-full transition-all duration-300 border-2 border-white/50 ${
+                        index === availableDesigns.findIndex(d => d.id === config.selectedDesign.id)
+                          ? 'bg-white shadow-lg shadow-white/50 scale-125'
+                          : 'bg-white/30 hover:bg-white/60 backdrop-blur-sm'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
             
             {/* 2. Technical Information - Responsive */}
@@ -751,7 +966,12 @@ function NeonConfiguratorApp() {
                         </div>
                         <span className="text-green-800 font-bold text-xs sm:text-sm lg:text-base animate-pulse">Im Warenkorb</span>
                         <div className="text-xs sm:text-sm lg:text-base font-bold text-green-800">
-                          €{currentDesignPrice.toFixed(2)}
+                          <InlineDiscountPrice
+                            originalPrice={fullPriceInfo.originalPrice}
+                            displayPrice={fullPriceInfo.displayPrice}
+                            finalPrice={fullPriceInfo.finalPrice}
+                            discountPercentage={fullPriceInfo.discountPercentage}
+                          />
                         </div>
                       </div>
                     </div>
@@ -773,7 +993,13 @@ function NeonConfiguratorApp() {
                         <span className="sm:hidden">{currentDesignCount > 0 ? 'Weitere' : 'Hinzufügen'}</span>
                       </span>
                       <div className="bg-white/20 rounded-full px-1.5 sm:px-2 lg:px-3 py-0.5 sm:py-1 text-xs sm:text-sm lg:text-base font-bold flex-shrink-0">
-                        €{currentDesignPrice.toFixed(2)}
+                        <InlineDiscountPrice
+                          originalPrice={fullPriceInfo.originalPrice}
+                          displayPrice={fullPriceInfo.displayPrice}
+                          finalPrice={fullPriceInfo.finalPrice}
+                          discountPercentage={fullPriceInfo.discountPercentage}
+                          className="text-white"
+                        />
                       </div>
                     </button>
                   )}
@@ -802,6 +1028,11 @@ function NeonConfiguratorApp() {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Compact Discount Timer */}
+              <div className="flex justify-center mb-4">
+                <CompactDiscountTimer className="animate-pulse" />
               </div>
               
               {/* Size Controls - Responsive */}
@@ -1051,6 +1282,71 @@ function NeonConfiguratorApp() {
 
     </div>
   );
+}
+
+// Компонент-обертка для загрузки данных проекта из CRM
+function NeonConfiguratorWithProject() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const [projectData, setProjectData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (projectId) {
+      loadProject(projectId);
+    }
+  }, [projectId]);
+
+  const loadProject = async (id: string) => {
+    try {
+      console.log('🔄 Loading project:', id);
+      const project = await directCrmService.getProjectById(id);
+      
+      if (project) {
+        console.log('✅ Loaded project data:', project);
+        
+        // Загружаем мокап если его нет
+        if (!project.mockup_url && !project.mockup_content) {
+          console.log('🖼️ Loading mockup for project...');
+          const mockupUrl = await directCrmService.loadMockupForProject(project.mondayId || project.id);
+          if (mockupUrl) {
+            project.mockup_url = mockupUrl;
+            console.log('✅ Loaded mockup URL:', mockupUrl);
+          }
+        }
+
+        // Загружаем SVG содержимое если есть URL но нет содержимого
+        if (project.svg_url && !project.svg_content) {
+          console.log('🎨 Loading SVG content from URL...');
+          const svgContent = await directCrmService.loadSvgContent(project.svg_url);
+          if (svgContent) {
+            project.svg_content = svgContent;
+            console.log('✅ Loaded SVG content, length:', svgContent.length);
+          }
+        }
+        
+        setProjectData(project);
+      } else {
+        console.warn('⚠️ Project not found:', id);
+      }
+    } catch (error) {
+      console.error('❌ Error loading project:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Загрузка проекта...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <NeonConfiguratorApp projectData={projectData} />;
 }
 
 export default App;

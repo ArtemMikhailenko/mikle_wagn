@@ -270,10 +270,482 @@ class MondayDirectService {
           console.warn('⚠️ Error checking subtable for SVG:', e);
         }
       }
+
+      // Всегда проверяем реальные размеры в subtable
+      if (project) {
+        console.log(`📐 Checking for real dimensions in subtable for project ${projectId}...`);
+        try {
+          const subtableDimensions = await this.getDimensionsFromSubtable(projectId);
+          if (subtableDimensions) {
+            console.log(`✅ Found real dimensions in subtable - updating project`);
+            project.originalWidth = subtableDimensions.width;
+            project.originalHeight = subtableDimensions.height;
+            project.ledLength = subtableDimensions.ledLength;
+            console.log(`📐 Updated dimensions: ${subtableDimensions.width}x${subtableDimensions.height}cm, LED: ${subtableDimensions.ledLength}m`);
+          } else {
+            console.log(`⚠️ No real dimensions found in subtable, using calculated values`);
+          }
+        } catch (e) {
+          console.warn('⚠️ Error checking subtable for dimensions:', e);
+        }
+
+        // Всегда проверяем реальные настройки UV/водонепроницаемость в subtable
+        console.log(`⚙️ Checking for real settings (UV/waterproof) in subtable for project ${projectId}...`);
+        try {
+          const subtableSettings = await this.getSettingsFromSubtable(projectId);
+          if (subtableSettings) {
+            console.log(`✅ Found real settings in subtable - updating project`);
+            project.hasUvPrint = subtableSettings.hasUvPrint;
+            project.isWaterproof = subtableSettings.isWaterproof;
+            console.log(`⚙️ Updated settings: UV Print=${subtableSettings.hasUvPrint}, Waterproof=${subtableSettings.isWaterproof}`);
+          } else {
+            console.log(`⚠️ No real settings found in subtable, using parsed values from main board`);
+          }
+        } catch (e) {
+          console.warn('⚠️ Error checking subtable for settings:', e);
+        }
+      }
       
       return project;
     } catch (error) {
       console.error('❌ Error fetching project from Monday:', error);
+      return null;
+    }
+  }
+
+  // Получить размеры из subtable для конкретного проекта
+  async getDimensionsFromSubtable(projectId: string): Promise<{width: number, height: number, ledLength: number} | null> {
+    try {
+      console.log(`📐 Fetching dimensions for project ${projectId} from subtable...`);
+      
+      const query = `
+        query {
+          boards(ids: [${this.subtableBoardId}]) {
+            items_page(limit: 100) {
+              items {
+                id
+                name
+                column_values {
+                  id
+                  text
+                  value
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.apiToken
+        },
+        body: JSON.stringify({ query })
+      });
+
+      if (!response.ok) {
+        console.error(`❌ Monday API HTTP error: ${response.status} - ${response.statusText}`);
+        return null;
+      }
+
+      const data: MondayResponse = await response.json();
+
+      if (!data?.data?.boards?.[0]?.items_page?.items) {
+        console.warn(`⚠️ No subtable data found for dimensions search`);
+        return null;
+      }
+
+      const items = data.data.boards[0].items_page.items;
+      console.log(`🔍 Subtable items found for dimensions: ${items.length}`);
+      console.log(`📝 All subtable items for dimensions:`, items.map((item: any) => `${item.id}: ${item.name}`));
+      console.log(`🎯 Looking for project ID: ${projectId}`);
+
+      // Попробуем найти элемент по нескольким стратегиям
+      let relatedItem = null;
+      
+      // Стратегия 1: Точное совпадение ID
+      relatedItem = items.find((item: any) => item.id === projectId);
+      if (relatedItem) {
+        console.log(`✅ Dimensions: Found exact ID match: ${relatedItem.id}: ${relatedItem.name}`);
+      }
+      
+      // Стратегия 2: Поиск в названии
+      if (!relatedItem) {
+        relatedItem = items.find((item: any) => item.name.includes(projectId));
+        if (relatedItem) {
+          console.log(`✅ Dimensions: Found name match: ${relatedItem.id}: ${relatedItem.name}`);
+        }
+      }
+      
+      // Стратегия 3: Поиск по полям (может быть есть поле-связка)
+      if (!relatedItem) {
+        relatedItem = items.find((item: any) => 
+          item.column_values.some((col: any) => 
+            col.text?.includes(projectId) || 
+            (col.value && col.value.includes(projectId))
+          )
+        );
+        if (relatedItem) {
+          console.log(`✅ Dimensions: Found field match: ${relatedItem.id}: ${relatedItem.name}`);
+        }
+      }
+      
+      // Стратегия 4: Частичное совпадение ID (8 символов)
+      if (!relatedItem && projectId.length >= 8) {
+        const partialId = projectId.substring(0, 8);
+        console.log(`🔍 Dimensions: Trying partial ID match: ${partialId}`);
+        relatedItem = items.find((item: any) => item.id.startsWith(partialId));
+        if (relatedItem) {
+          console.log(`✅ Dimensions: Found partial match: ${relatedItem.id}: ${relatedItem.name}`);
+        }
+      }
+      
+      // Стратегия 5: Короткое совпадение ID (6 символов)
+      if (!relatedItem && projectId.length >= 6) {
+        const shortId = projectId.substring(0, 6);
+        console.log(`🔍 Dimensions: Trying short ID match: ${shortId}`);
+        relatedItem = items.find((item: any) => item.id.startsWith(shortId));
+        if (relatedItem) {
+          console.log(`✅ Dimensions: Found short match: ${relatedItem.id}: ${relatedItem.name}`);
+        }
+      }
+      
+      // Стратегия 6: Берем последний добавленный элемент (fallback для тестирования)
+      if (!relatedItem && items.length > 1) {
+        // Исключаем первый элемент "Subitem", берем последний реальный
+        const realItems = items.filter((item: any) => !item.name.includes('Subitem'));
+        if (realItems.length > 0) {
+          relatedItem = realItems[realItems.length - 1]; // Последний добавленный
+          console.log(`🔄 Dimensions: Using fallback (last item): ${relatedItem.id}: ${relatedItem.name}`);
+        }
+      }
+
+      if (!relatedItem) {
+        console.warn(`⚠️ No related subtable item found for dimensions in project ${projectId}`);
+        return null;
+      }
+
+      console.log(`📊 Found dimensions item: ${relatedItem.id}: ${relatedItem.name}`);
+      console.log(`📋 Available dimension fields:`, relatedItem.column_values.map((col: any) => ({
+        id: col.id,
+        text: col.text,
+        value: col.value
+      })));
+
+      // Ищем поля размеров (ориентируемся на тест и возможные ID)
+      const widthField = relatedItem.column_values.find((col: any) => 
+        col.text === 'Width' || col.id.includes('width') || col.id === 'numeric_mkq7ejqj'
+      );
+      
+      const heightField = relatedItem.column_values.find((col: any) => 
+        col.text === 'Height' || col.id.includes('height') || col.id === 'numeric_mkq7nqpc'
+      );
+      
+      const ledField = relatedItem.column_values.find((col: any) => 
+        col.text === 'LED(m)' || col.id.includes('led') || col.id === 'numeric_mkqq3jcd'
+      );
+
+      console.log(`🔍 Dimension fields found:`, {
+        width: widthField ? { id: widthField.id, text: widthField.text, value: widthField.value } : null,
+        height: heightField ? { id: heightField.id, text: heightField.text, value: heightField.value } : null,
+        led: ledField ? { id: ledField.id, text: ledField.text, value: ledField.value } : null
+      });
+
+      // Извлекаем значения
+      let width = 100; // fallback
+      let height = 30; // fallback  
+      let ledLength = 2.6; // fallback
+
+      if (widthField?.value) {
+        try {
+          const widthValue = JSON.parse(widthField.value);
+          width = parseFloat(widthValue) || parseFloat(widthField.text || '0') || 100;
+        } catch {
+          width = parseFloat(widthField.text || '0') || 100;
+        }
+      }
+
+      if (heightField?.value) {
+        try {
+          const heightValue = JSON.parse(heightField.value);
+          height = parseFloat(heightValue) || parseFloat(heightField.text || '0') || 30;
+        } catch {
+          height = parseFloat(heightField.text || '0') || 30;
+        }
+      }
+
+      if (ledField?.value) {
+        try {
+          const ledValue = JSON.parse(ledField.value);
+          ledLength = parseFloat(ledValue) || parseFloat(ledField.text || '0') || 2.6;
+        } catch {
+          ledLength = parseFloat(ledField.text || '0') || 2.6;
+        }
+      }
+
+      console.log(`✅ Extracted dimensions from subtable: Width=${width}cm, Height=${height}cm, LED=${ledLength}m`);
+      
+      return {
+        width: Math.round(width),
+        height: Math.round(height),
+        ledLength: ledLength
+      };
+
+    } catch (error) {
+      console.error('❌ Error fetching dimensions from subtable:', error);
+      return null;
+    }
+  }
+
+  // Получить настройки UV и водонепроницаемости из subtable для конкретного проекта
+  async getSettingsFromSubtable(projectId: string): Promise<{hasUvPrint: boolean, isWaterproof: boolean} | null> {
+    try {
+      console.log(`⚙️ Fetching UV/waterproof settings for project ${projectId} from subtable...`);
+      
+      const query = `
+        query {
+          boards(ids: [${this.subtableBoardId}]) {
+            items_page(limit: 100) {
+              items {
+                id
+                name
+                column_values {
+                  id
+                  text
+                  value
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.apiToken
+        },
+        body: JSON.stringify({ query })
+      });
+
+      if (!response.ok) {
+        console.error(`❌ Monday API HTTP error: ${response.status} - ${response.statusText}`);
+        return null;
+      }
+
+      const data: MondayResponse = await response.json();
+
+      if (!data?.data?.boards?.[0]?.items_page?.items) {
+        console.warn(`⚠️ No subtable data found for settings search`);
+        return null;
+      }
+
+      const items = data.data.boards[0].items_page.items;
+      console.log(`🔍 Subtable items found for settings: ${items.length}`);
+      console.log(`📝 All subtable items for settings:`, items.map((item: any) => `${item.id}: ${item.name}`));
+      console.log(`🎯 Looking for project ID: ${projectId}`);
+
+      // Сначала найдем все элементы, которые могут быть связаны с проектом
+      let candidateItems = [];
+      
+      // Стратегия 1: Точное совпадение ID
+      let exactMatch = items.find((item: any) => item.id === projectId);
+      if (exactMatch) {
+        candidateItems.push(exactMatch);
+        console.log(`✅ Settings: Found exact ID match: ${exactMatch.id}: ${exactMatch.name}`);
+      }
+      
+      // Стратегия 2: Поиск в названии
+      let nameMatches = items.filter((item: any) => item.name.includes(projectId));
+      candidateItems.push(...nameMatches);
+      if (nameMatches.length > 0) {
+        console.log(`✅ Settings: Found ${nameMatches.length} name matches:`, nameMatches.map(item => `${item.id}: ${item.name}`));
+      }
+      
+      // Стратегия 3: Поиск по полям (может быть есть поле-связка)
+      let fieldMatches = items.filter((item: any) => 
+        item.column_values.some((col: any) => 
+          col.text?.includes(projectId) || 
+          (col.value && col.value.includes(projectId))
+        )
+      );
+      candidateItems.push(...fieldMatches);
+      if (fieldMatches.length > 0) {
+        console.log(`✅ Settings: Found ${fieldMatches.length} field matches:`, fieldMatches.map(item => `${item.id}: ${item.name}`));
+      }
+      
+      // Убираем дубликаты
+      candidateItems = candidateItems.filter((item, index, self) => 
+        self.findIndex(i => i.id === item.id) === index
+      );
+      
+      console.log(`🔍 Total candidate items for settings: ${candidateItems.length}`);
+      
+      // Теперь из всех кандидатов найдем тот, который содержит поля UV/влагозащиты с актуальными данными
+      let relatedItem = null;
+      
+      for (const candidate of candidateItems) {
+        console.log(`🔍 Checking candidate ${candidate.id}: ${candidate.name} for UV/waterproof fields...`);
+        
+        // Проверяем, есть ли в этом элементе поля UV или влагозащиты с реальными данными
+        let hasUvField = false;
+        let hasWaterproofField = false;
+        
+        for (const col of candidate.column_values) {
+          const fieldName = (col.text || '').toLowerCase();
+          const fieldValue = (col.value || '').toLowerCase();
+          
+          // Проверяем наличие полей UV
+          if ((fieldName.includes('uv') || fieldName.includes('druck') || fieldName.includes('print')) && 
+              (col.text === 'Yes' || col.text === 'Ja' || col.text === 'Empfohlen')) {
+            hasUvField = true;
+            console.log(`✅ Found UV field in ${candidate.id}: ${col.id} = ${col.text}`);
+          }
+          
+          // Проверяем наличие полей влагозащиты
+          if ((fieldName.includes('wasserdicht') || fieldName.includes('waterproof') || fieldName.includes('outdoor')) && 
+              (col.text === 'Yes' || col.text === 'Ja' || col.text?.includes('25%'))) {
+            hasWaterproofField = true;
+            console.log(`✅ Found Waterproof field in ${candidate.id}: ${col.id} = ${col.text}`);
+          }
+        }
+        
+        // Если этот элемент содержит поля настроек, используем его
+        if (hasUvField || hasWaterproofField) {
+          relatedItem = candidate;
+          console.log(`✅ Selected item with settings fields: ${candidate.id}: ${candidate.name}`);
+          break;
+        }
+      }
+      
+      // Если не нашли элемент с настройками, берем первый попавшийся кандидат
+      if (!relatedItem && candidateItems.length > 0) {
+        relatedItem = candidateItems[0];
+        console.log(`⚠️ No item with settings fields found, using first candidate: ${relatedItem.id}: ${relatedItem.name}`);
+      }
+      
+      // Стратегия 4: Частичное совпадение ID (8 символов)
+      if (!relatedItem && projectId.length >= 8) {
+        const partialId = projectId.substring(0, 8);
+        console.log(`🔍 Settings: Trying partial ID match: ${partialId}`);
+        relatedItem = items.find((item: any) => item.id.startsWith(partialId));
+        if (relatedItem) {
+          console.log(`✅ Settings: Found partial match: ${relatedItem.id}: ${relatedItem.name}`);
+        }
+      }
+      
+      // Стратегия 5: Короткое совпадение ID (6 символов)
+      if (!relatedItem && projectId.length >= 6) {
+        const shortId = projectId.substring(0, 6);
+        console.log(`🔍 Settings: Trying short ID match: ${shortId}`);
+        relatedItem = items.find((item: any) => item.id.startsWith(shortId));
+        if (relatedItem) {
+          console.log(`✅ Settings: Found short match: ${relatedItem.id}: ${relatedItem.name}`);
+        }
+      }
+      
+      // Стратегия 6: Берем последний добавленный элемент (fallback для тестирования)
+      if (!relatedItem && items.length > 1) {
+        // Исключаем первый элемент "Subitem", берем последний реальный
+        const realItems = items.filter((item: any) => !item.name.includes('Subitem'));
+        if (realItems.length > 0) {
+          relatedItem = realItems[realItems.length - 1]; // Последний добавленный
+          console.log(`🔄 Settings: Using fallback (last item): ${relatedItem.id}: ${relatedItem.name}`);
+        }
+      }
+
+      if (!relatedItem) {
+        console.warn(`⚠️ No related subtable item found for settings in project ${projectId}`);
+        return null;
+      }
+
+      console.log(`📊 Found settings item: ${relatedItem.id}: ${relatedItem.name}`);
+      console.log(`📋 Available settings fields:`, relatedItem.column_values.map((col: any) => ({
+        id: col.id,
+        text: col.text,
+        value: col.value
+      })));
+
+      // Ищем поля настроек - UV и водонепроницаемость
+      // Ориентируемся на возможные названия полей и их значения
+      let hasUvPrint = false;
+      let isWaterproof = false;
+
+      console.log(`🔍 Analyzing all fields for UV/waterproof settings...`);
+
+      // Проверяем все поля на наличие UV и waterproof настроек
+      for (const col of relatedItem.column_values) {
+        const fieldText = (col.text || '').trim();
+        const fieldName = fieldText.toLowerCase();
+        
+        console.log(`🔍 Field ${col.id}: text="${fieldText}", value="${col.value}"`);
+        
+        // Проверяем UV-печать - ищем поле с текстом "Yes", "Ja", "Empfohlen" в контексте UV
+        if (fieldText === 'Yes' || fieldText === 'Ja' || fieldText === 'Empfohlen') {
+          // Это положительное значение, проверяем контекст поля
+          // Если ID поля содержит UV-связанные термины или это поле в области UV настроек
+          if (col.id.includes('uv') || col.id.includes('druck') || col.id.includes('print') ||
+              fieldName.includes('uv') || fieldName.includes('druck') || fieldName.includes('print')) {
+            hasUvPrint = true;
+            console.log(`✅ UV Print ENABLED via field ${col.id}: "${fieldText}"`);
+          }
+          // Если это просто "Yes"/"Ja" без контекста, но может быть UV поле - проверим позицию
+          else {
+            // Попробуем определить по позиции - обычно UV идет после размеров
+            const fieldIndex = relatedItem.column_values.indexOf(col);
+            console.log(`🔍 Field position ${fieldIndex} has value "${fieldText}" - checking if it's UV field...`);
+            
+            // Если это одно из полей в конце списка (обычно там настройки)
+            if (fieldIndex >= 10) { // Примерная позиция полей настроек
+              hasUvPrint = true;
+              console.log(`✅ UV Print ENABLED via positional field ${col.id} at position ${fieldIndex}: "${fieldText}"`);
+            }
+          }
+        }
+        
+        // Проверяем водонепроницаемость
+        if (fieldText === 'Yes' || fieldText === 'Ja' || fieldText.includes('25%')) {
+          // Это положительное значение, проверяем контекст поля
+          if (col.id.includes('wasserdicht') || col.id.includes('waterproof') || col.id.includes('outdoor') ||
+              fieldName.includes('wasserdicht') || fieldName.includes('waterproof') || fieldName.includes('outdoor')) {
+            isWaterproof = true;
+            console.log(`✅ Waterproof ENABLED via field ${col.id}: "${fieldText}"`);
+          }
+          // Если это просто "Yes"/"Ja" без контекста - проверим позицию
+          else if (fieldText === 'Yes' || fieldText === 'Ja') {
+            const fieldIndex = relatedItem.column_values.indexOf(col);
+            // Если это поле после UV поля (водонепроницаемость обычно идет после UV)
+            if (fieldIndex >= 11) { // Позиция после UV поля
+              isWaterproof = true;
+              console.log(`✅ Waterproof ENABLED via positional field ${col.id} at position ${fieldIndex}: "${fieldText}"`);
+            }
+          }
+        }
+      }
+
+      // Также проверяем название проекта и другие текстовые поля на ключевые слова
+      const itemName = relatedItem.name.toLowerCase();
+      if (itemName.includes('uv') || itemName.includes('druck')) {
+        hasUvPrint = true;
+        console.log(`✅ UV Print detected in item name: ${relatedItem.name}`);
+      }
+      if (itemName.includes('wasserdicht') || itemName.includes('outdoor')) {
+        isWaterproof = true;
+        console.log(`✅ Waterproof detected in item name: ${relatedItem.name}`);
+      }
+
+      console.log(`✅ Extracted settings from subtable: UV Print=${hasUvPrint}, Waterproof=${isWaterproof}`);
+      
+      return {
+        hasUvPrint,
+        isWaterproof
+      };
+
+    } catch (error) {
+      console.error('❌ Error fetching settings from subtable:', error);
       return null;
     }
   }

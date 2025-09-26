@@ -97,6 +97,18 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   const svgRef   = useRef<SVGSVGElement|null>(null);
   const originalSvgRef = useRef<string>(''); // Store original SVG content
 
+  // Debug logging для CRM проектов
+  useEffect(() => {
+    console.log('🎨 NeonMockupStage Props:', {
+      hasCustomMockupUrl: !!customMockupUrl,
+      hasSvgContent: !!currentSvgContent,
+      hasSvgImageUrl: !!svgImageUrl,
+      lengthCm,
+      mockupUrl: customMockupUrl || 'none',
+      svgUrl: svgImageUrl || 'none'
+    });
+  }, [customMockupUrl, currentSvgContent, svgImageUrl, lengthCm]);
+
   // State für manuell gewählten Hintergrund
   const [currentBackground, setCurrentBackground] = useState(selectedBackground || "ab_100cm_50%");
 
@@ -118,16 +130,31 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   useEffect(()=>{ 
     console.log('🔄 NeonMockupStage: External neonOn changed to:', neonOn);
     setLocalNeonOn(neonOn); 
+    // Если SVG уже загружен, обновляем неон сразу
+    if (svgRef.current) {
+      console.log('💡 Updating neon effect on existing SVG:', neonOn);
+      toggleNeon(svgRef.current, neonOn, neonIntensity ?? localNeon);
+    }
   }, [neonOn]);
 
   // Effect для загрузки SVG при смене дизайна
   useEffect(() => {
     if (currentSvgContent && currentSvgContent !== originalSvgRef.current) {
+      console.log('🔄 Loading new SVG content. Length:', currentSvgContent.length);
+      console.log('🔄 Current neon state - external neonOn:', neonOn, 'localNeonOn:', localNeonOn);
+      
+      // Очищаем URL reference если загружаем содержимое
+      if (originalSvgRef.current && originalSvgRef.current.startsWith('http')) {
+        console.log('🗑️ Clearing URL reference since we have SVG content');
+        originalSvgRef.current = '';
+      }
+      
       originalSvgRef.current = currentSvgContent;
       
       const doc = new DOMParser().parseFromString(currentSvgContent, "image/svg+xml");
       const svg = doc.querySelector("svg") as SVGSVGElement | null;
       if (svg && planeRef.current) {
+        console.log('✅ SVG parsed successfully');
         sanitize(svg); 
         ensureViewBox(svg);
         
@@ -138,20 +165,160 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
         planeRef.current.appendChild(svg);
         svgRef.current = svg;
 
+        console.log('🔧 Processing SVG effects...');
         processAcrylic(svg);
         processUV(svg, uvOn);
-        processNeon(svg, localNeonOn, neonIntensity ?? localNeon);
+        
+        // Используем внешний neonOn для новой загрузки SVG
+        const shouldEnableNeon = neonOn;
+        console.log('⚡ Processing neon with state:', shouldEnableNeon, 'intensity:', neonIntensity ?? localNeon);
+        processNeon(svg, shouldEnableNeon, neonIntensity ?? localNeon);
+        
         setPlaneSizeByCm(lengthCm);
+        
+        // Обновляем локальное состояние неона
+        setLocalNeonOn(shouldEnableNeon);
+        
+        console.log('✅ SVG fully processed and added to DOM');
+      } else {
+        console.error('❌ Failed to parse SVG or missing container');
       }
     } else if (!currentSvgContent && originalSvgRef.current) {
       // Очищаем SVG если currentSvgContent стал null
+      console.log('🗑️ Clearing SVG content');
       originalSvgRef.current = '';
       if (planeRef.current) {
         planeRef.current.innerHTML = '';
       }
       svgRef.current = null;
     }
-  }, [currentSvgContent, uvOn, localNeonOn, neonIntensity, localNeon, lengthCm]);
+  }, [currentSvgContent, uvOn, neonOn, neonIntensity, localNeon, lengthCm]);
+
+  // Effect для загрузки SVG по URL если нет содержимого
+  useEffect(() => {
+    // Загружаем SVG по URL только если нет SVG содержимого и есть URL
+    if (!currentSvgContent && svgImageUrl && svgImageUrl !== 'undefined' && svgImageUrl !== originalSvgRef.current) {
+      console.log('🔄 Attempting to load SVG content from URL:', svgImageUrl);
+      console.log('🔍 SVG loading conditions: no content =', !currentSvgContent, ', has URL =', !!svgImageUrl);
+      originalSvgRef.current = svgImageUrl;
+      
+      const loadSvgContent = async () => {
+        try {
+          // Метод 1: Прямая загрузка
+          let response = await fetch(svgImageUrl, {
+            method: 'GET',
+            mode: 'cors',
+            headers: {
+              'Accept': 'image/svg+xml,text/plain,*/*'
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Direct fetch failed: HTTP ${response.status}`);
+          }
+          
+          let svgText = await response.text();
+          
+          if (!svgText.includes('<svg')) {
+            throw new Error('Response does not contain valid SVG');
+          }
+          
+          console.log('✅ Successfully loaded SVG via direct fetch, length:', svgText.length);
+          
+          // Процессинг SVG
+          const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+          const svg = doc.querySelector("svg") as SVGSVGElement | null;
+          if (svg && planeRef.current) {
+            console.log('✅ SVG parsed successfully from URL');
+            sanitize(svg); 
+            ensureViewBox(svg);
+            
+            // Apply responsive sizing
+            applyResponsiveSizing(svg);
+            svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+            planeRef.current.innerHTML = ""; 
+            planeRef.current.appendChild(svg);
+            svgRef.current = svg;
+
+            console.log('🔧 Processing SVG effects from URL...');
+            processAcrylic(svg);
+            processUV(svg, uvOn);
+            
+            const shouldEnableNeon = neonOn;
+            console.log('⚡ Processing neon from URL with state:', shouldEnableNeon, 'intensity:', neonIntensity ?? localNeon);
+            processNeon(svg, shouldEnableNeon, neonIntensity ?? localNeon);
+            
+            setPlaneSizeByCm(lengthCm);
+            setLocalNeonOn(shouldEnableNeon);
+            
+            console.log('✅ SVG from URL fully processed and added to DOM');
+          }
+          
+        } catch (directError) {
+          console.log('⚠️ Direct fetch failed, trying proxy method:', directError instanceof Error ? directError.message : 'Unknown error');
+          
+          try {
+            // Метод 2: Загрузка через proxy сервер
+            const proxyUrl = `http://localhost:3001/proxy-svg?url=${encodeURIComponent(svgImageUrl)}`;
+            console.log('🌐 Trying proxy URL:', proxyUrl);
+            
+            const response = await fetch(proxyUrl, {
+              method: 'GET',
+              headers: {
+                'Accept': 'image/svg+xml,text/plain,*/*'
+              }
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Proxy fetch failed: HTTP ${response.status}`);
+            }
+            
+            const svgText = await response.text();
+            
+            if (!svgText.includes('<svg')) {
+              throw new Error('Proxy response does not contain valid SVG');
+            }
+            
+            console.log('✅ Successfully loaded SVG via proxy, length:', svgText.length);
+            
+            // Процессинг SVG
+            const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+            const svg = doc.querySelector("svg") as SVGSVGElement | null;
+            if (svg && planeRef.current) {
+              console.log('✅ SVG parsed successfully from proxy');
+              sanitize(svg); 
+              ensureViewBox(svg);
+              
+              // Apply responsive sizing
+              applyResponsiveSizing(svg);
+              svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+              planeRef.current.innerHTML = ""; 
+              planeRef.current.appendChild(svg);
+              svgRef.current = svg;
+
+              console.log('🔧 Processing SVG effects from proxy...');
+              processAcrylic(svg);
+              processUV(svg, uvOn);
+              
+              const shouldEnableNeon = neonOn;
+              console.log('⚡ Processing neon from proxy with state:', shouldEnableNeon, 'intensity:', neonIntensity ?? localNeon);
+              processNeon(svg, shouldEnableNeon, neonIntensity ?? localNeon);
+              
+              setPlaneSizeByCm(lengthCm);
+              setLocalNeonOn(shouldEnableNeon);
+              
+              console.log('✅ SVG from proxy fully processed and added to DOM');
+            }
+            
+          } catch (proxyError) {
+            console.warn('⚠️ Both direct and proxy methods failed:', proxyError instanceof Error ? proxyError.message : 'Unknown error');
+          }
+        }
+      };
+      
+      loadSvgContent();
+    }
+  }, [svgImageUrl, currentSvgContent, uvOn, neonOn, neonIntensity, localNeon, lengthCm]);
 
   // Function to apply responsive sizing to existing SVG
   const applyResponsiveSizing = (svg: SVGSVGElement) => {

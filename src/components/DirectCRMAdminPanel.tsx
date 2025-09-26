@@ -326,7 +326,7 @@ Ihr Nontel Team
                       <td className="py-4 px-6">
                         <div className="flex gap-2">
                           <button 
-                            onClick={() => copyToClipboard(`${window.location.origin}/client/${project.id}`, project.id)}
+                            onClick={() => copyToClipboard(`${window.location.origin}/project/${project.id}`, project.id)}
                             className="text-blue-400 hover:text-blue-300 text-sm font-medium flex items-center gap-1"
                             title="Link kopieren"
                           >
