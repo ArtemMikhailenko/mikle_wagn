@@ -8,7 +8,8 @@ import SVGPreview from './SVGPreview';
 import StripeProvider from './StripeProvider';
 import StripeCheckoutForm from './StripeCheckoutForm';
 import PromoCodeInput from './PromoCodeInput';
-import DiscountTimer, { DiscountPriceDisplay } from './DiscountTimer';
+// DiscountTimer удалён из шапки; используем сервис и локальный таймер для компактной плашки
+import { discountService } from '../services/discountService';
 import { DiscountApplication } from '../services/discountService';
 
 interface ShippingCalculationPageProps {
@@ -30,6 +31,13 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
   const [showStripeForm, setShowStripeForm] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<DiscountApplication | null>(null);
+  // Лёгкий тик обновления для плашки
+  const [, forceRender] = React.useReducer((x) => x + 1, 0);
+  React.useEffect(() => {
+    const unsub = discountService.onTimerChange(() => forceRender());
+    forceRender();
+    return unsub;
+  }, []);
 
   // Calculate individual sign prices with fake discounts
   const signPrices = config.signs?.map(sign => {
@@ -199,14 +207,7 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
           <div className="w-32"></div> {/* Spacer for centering */}
         </div>
         
-        {/* Discount Timer - Prominent in header */}
-        <div className="max-w-7xl mx-auto mt-4 px-4">
-          <DiscountTimer 
-            className="max-w-md mx-auto"
-            size="medium"
-            showProgress={true}
-          />
-        </div>
+        {/* Скрыли большой таймер в шапке — дизайн скидки перенесён в блок калькуляции ниже */}
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
@@ -236,7 +237,7 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                   signPrices.map((sign, index) => (
                     <div
                       key={sign.id}
-                      className={`border rounded-lg p-2 sm:p-3 transition-all duration-300 ${
+                      className={`border rounded-xl p-2 sm:p-3 transition-all duration-300 ${
                         sign.isEnabled
                           ? 'border-green-200 bg-green-50'
                           : 'border-gray-200 bg-gray-50 opacity-75'
@@ -250,7 +251,7 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                             design={sign.design}
                             width={sign.width}
                             height={sign.height}
-                            className="w-8 h-8 flex-shrink-0"
+                            className="w-12 h-12 flex-shrink-0"
                             uploadedSvgContent={sign.uploadedSvgContent}
                           />
                           <h3 className="font-medium text-gray-800 text-sm flex-1">Design #{index + 1}</h3>
@@ -261,13 +262,25 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
 
                         {/* Desktop Layout - Single Row */}
                         <div className="hidden sm:flex sm:items-center sm:space-x-2">
-                          <SVGPreview 
-                            design={sign.design}
-                            width={sign.width}
-                            height={sign.height}
-                            className="w-10 h-10 flex-shrink-0"
-                            uploadedSvgContent={sign.uploadedSvgContent}
-                          />
+                          <div className="relative group">
+                            <SVGPreview 
+                              design={sign.design}
+                              width={sign.width}
+                              height={sign.height}
+                              className="w-16 h-16 flex-shrink-0"
+                              uploadedSvgContent={sign.uploadedSvgContent}
+                            />
+                            {/* Hover popover with larger preview */}
+                            <div className="pointer-events-none hidden md:flex absolute left-0 top-full mt-2 p-1 bg-white border border-gray-200 rounded-lg shadow-xl z-20 opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all">
+                              <SVGPreview 
+                                design={sign.design}
+                                width={sign.width}
+                                height={sign.height}
+                                className="w-56 h-40"
+                                uploadedSvgContent={sign.uploadedSvgContent}
+                              />
+                            </div>
+                          </div>
 
                           {/* Sign Info - Desktop */}
                           <div className="flex-1 min-w-0">
@@ -326,7 +339,7 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                           </div>
 
                           {/* Price - Desktop */}
-                          <div className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">
+                          <div className="bg-green-100 text-green-800 px-2 py-1 rounded-md text-xs font-semibold shadow-sm">
                             €{sign.price.toFixed(2)}
                           </div>
 
@@ -490,6 +503,31 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                   <CreditCard className="h-6 w-6 text-white" />
                 </div>
                 <h2 className="text-xl font-bold text-gray-800">Kalkulation</h2>
+                {/* Компактная плашка со скидкой внутри калькуляции */}
+                {discountService.isFakeDiscountActive?.() && (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-semibold">
+                          🔥 {discountService.getCurrentFakeDiscount()?.name || 'Angebot'}
+                        </span>
+                        <span className="text-rose-700 text-sm font-semibold">{discountService.getCurrentFakeDiscount()?.percentage}% Rabatt</span>
+                      </div>
+                      <div className="text-rose-700 text-xs font-mono">
+                        {(() => {
+                          const cfg = discountService.getCurrentFakeDiscount();
+                          if (!cfg) return null;
+                          const now = Date.now();
+                          const diff = Math.max(0, Math.floor((new Date(cfg.endDate).getTime() - now) / 1000));
+                          const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+                          const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+                          const s = Math.floor(diff % 60).toString().padStart(2, '0');
+                          return <>⏱ {h}:{m}:{s}</>;
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Grid Layout for Kalkulation Content */}
@@ -626,9 +664,30 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                 <div className="lg:col-span-1">
                   <div className="space-y-3 mb-6 border-t pt-4">
                     <h3 className="font-semibold text-gray-800 mb-3">Preisübersicht</h3>
-                                        <div className="flex justify-between text-gray-700">
-                      <span>Schilder ({signPrices.filter(s => s.isEnabled).length}):</span>
-                      <span className="font-semibold">€{enabledSignsTotal.toFixed(2)}</span>
+                    <div className="flex justify-between text-gray-700">
+                      <span className="flex items-center gap-2">
+                        Schilder ({signPrices.filter(s => s.isEnabled).length})
+                        {discountService.isFakeDiscountActive() && (
+                          <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 text-xs font-semibold border border-rose-200">
+                            -{discountService.getCurrentFakeDiscount()?.percentage}%
+                          </span>
+                        )}
+                        :
+                      </span>
+                      {discountService.isFakeDiscountActive() && discountService.getCurrentFakeDiscount() ? (
+                        (() => {
+                          const cfg = discountService.getCurrentFakeDiscount()!;
+                          const fakeItemsDisplay = enabledSignsTotal + (enabledSignsTotal * cfg.percentage) / 100;
+                          return (
+                            <span className="text-right">
+                              <span className="block text-sm text-gray-400 line-through">€{fakeItemsDisplay.toFixed(2)}</span>
+                              <span className="font-semibold">€{enabledSignsTotal.toFixed(2)}</span>
+                            </span>
+                          );
+                        })()
+                      ) : (
+                        <span className="font-semibold">€{enabledSignsTotal.toFixed(2)}</span>
+                      )}
                     </div>
                     
                     {additionalCosts > 0 && (
@@ -640,8 +699,36 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
                     
                     <div className="flex justify-between text-gray-700 border-t pt-3">
                       <span>Zwischensumme vor Rabatt:</span>
-                      <span className="font-semibold">€{subtotalBeforeDiscount.toFixed(2)}</span>
+                      {discountService.isFakeDiscountActive() && discountService.getCurrentFakeDiscount() ? (
+                        (() => {
+                          const cfg = discountService.getCurrentFakeDiscount()!;
+                          const fakeSubtotalDisplay = subtotalBeforeDiscount + (enabledSignsTotal * cfg.percentage) / 100;
+                          return (
+                            <span className="text-right">
+                              <span className="block text-sm text-gray-400 line-through">€{fakeSubtotalDisplay.toFixed(2)}</span>
+                              <span className="font-semibold">€{subtotalBeforeDiscount.toFixed(2)}</span>
+                            </span>
+                          );
+                        })()
+                      ) : (
+                        <span className="font-semibold">€{subtotalBeforeDiscount.toFixed(2)}</span>
+                      )}
                     </div>
+
+                    {/* Marketingrabatt (визуально, не влияет на оплату) */}
+                    {discountService.isFakeDiscountActive() && discountService.getCurrentFakeDiscount() && (
+                      (() => {
+                        const cfg = discountService.getCurrentFakeDiscount()!;
+                        const marketingDiscountAmount = (enabledSignsTotal * cfg.percentage) / 100;
+                        if (marketingDiscountAmount <= 0) return null;
+                        return (
+                          <div className="flex justify-between items-center text-rose-700 bg-rose-50 border border-rose-200 rounded-md px-3 py-2">
+                            <span>Marketingrabatt ({cfg.name || `${cfg.percentage}%`}):</span>
+                            <span className="font-semibold">-€{marketingDiscountAmount.toFixed(2)}</span>
+                          </div>
+                        );
+                      })()
+                    )}
 
                     {/* Discount Display */}
                     {discountAmount > 0 && (

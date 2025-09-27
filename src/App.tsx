@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { discountService } from './services/discountService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import CustomerHeader from './components/CustomerHeader';
 import MondayStatus from './components/MondayStatus';
@@ -44,6 +45,10 @@ import ClientViewFullConfigurator from './components/ClientViewFullConfigurator'
 import DebugProject from './components/DebugProject';
 
 function App() {
+  // Принудительно подтягиваем актуальную фиктивную скидку при старте приложения
+  useEffect(() => {
+    discountService.refreshFakeDiscount(true).catch(() => {/* no-op */});
+  }, []);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [supabase, setSupabase] = useState<any>(null);

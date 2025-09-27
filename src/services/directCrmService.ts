@@ -166,7 +166,12 @@ class DirectCRMService {
 
       // Метод 2: Загрузка через proxy сервер для обхода CORS
       try {
-        const proxyUrl = `http://localhost:3001/proxy-svg?url=${encodeURIComponent(svgUrl)}`;
+        const apiBase = typeof window !== 'undefined' && window.location && window.location.origin
+          ? window.location.origin
+          : '';
+        const edgeUrl = `${apiBase}/api/proxy-svg?url=${encodeURIComponent(svgUrl)}`;
+        const localUrl = `http://localhost:3001/proxy-svg?url=${encodeURIComponent(svgUrl)}`;
+        const proxyUrl = edgeUrl;
         console.log('🌐 Trying proxy URL:', proxyUrl);
         
         const response = await fetch(proxyUrl, {
@@ -185,9 +190,28 @@ class DirectCRMService {
           }
         } else {
           console.log('❌ Proxy response not ok:', response.status, response.statusText);
+          // Dev fallback to local proxy
+          try {
+            console.log('🔁 Trying local proxy fallback:', localUrl);
+            const resp2 = await fetch(localUrl, { headers: { 'Accept': 'image/svg+xml,text/plain,*/*' } });
+            if (resp2.ok) {
+              const svgContent = await resp2.text();
+              if (svgContent.includes('<svg') || svgContent.includes('<?xml')) return svgContent;
+            }
+          } catch {}
         }
       } catch (proxyError) {
         console.log('⚠️ Proxy method failed:', proxyError instanceof Error ? proxyError.message : 'Unknown error');
+        // Dev fallback to local proxy
+        try {
+          const localUrl = `http://localhost:3001/proxy-svg?url=${encodeURIComponent(svgUrl)}`;
+          console.log('🔁 Trying local proxy fallback after error:', localUrl);
+          const resp2 = await fetch(localUrl, { headers: { 'Accept': 'image/svg+xml,text/plain,*/*' } });
+          if (resp2.ok) {
+            const svgContent = await resp2.text();
+            if (svgContent.includes('<svg') || svgContent.includes('<?xml')) return svgContent;
+          }
+        } catch {}
       }
 
       // Метод 3: Загрузка через img элемент и canvas (последний резерв)

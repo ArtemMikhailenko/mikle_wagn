@@ -16,9 +16,20 @@ const FakeDiscountPriceDisplay: React.FC<FakeDiscountPriceDisplayProps> = ({
   compact = false,
   textColor = ''
 }) => {
+  const [, forceRender] = React.useReducer((x) => x + 1, 0);
   const priceData = discountService.calculateFakeDiscountPrice(realPrice);
   const fakeDiscount = discountService.getCurrentFakeDiscount();
   const isActive = discountService.isFakeDiscountActive();
+
+  React.useEffect(() => {
+    // Подписка на тик таймера, чтобы обновлять отображение при изменении скидки/таймера
+    const unsubscribe = discountService.onTimerChange(() => {
+      forceRender();
+    });
+    // Начальный тик
+    forceRender();
+    return unsubscribe;
+  }, []);
 
   if (!fakeDiscount || !isActive) {
     // Показываем только обычную цену

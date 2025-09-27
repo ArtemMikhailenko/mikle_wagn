@@ -18,6 +18,7 @@ const SVGPreview: React.FC<SVGPreviewProps> = ({
   uploadedSvgContent
 }) => {
   const [showModal, setShowModal] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handlePreviewClick = () => {
     setShowModal(true);
@@ -119,25 +120,26 @@ const SVGPreview: React.FC<SVGPreviewProps> = ({
         className={`${className} bg-white border-2 border-gray-200 rounded-lg p-1 md:p-2 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow group relative`}
         onClick={handlePreviewClick}
       >
-        <img
-          src={design.mockupUrl}
-          alt={design.name}
-          className="max-w-full max-h-full object-contain rounded scale-50 sm:scale-60 md:scale-75 lg:scale-90 xl:scale-100"
-          onError={(e) => {
-            console.error('❌ Failed to load mockup image:', design.mockupUrl);
-            // Show placeholder
-            (e.target as HTMLImageElement).style.display = 'none';
-          }}
-        />
+        {!imageError ? (
+          <img
+            src={design.mockupUrl}
+            alt={design.name}
+            className="max-w-full max-h-full object-contain rounded scale-50 sm:scale-60 md:scale-75 lg:scale-90 xl:scale-100"
+            onError={() => {
+              console.error('❌ Failed to load mockup image:', design.mockupUrl);
+              setImageError(true);
+            }}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-400 bg-gray-100 rounded">
+            <div className="text-center">
+              <div className="font-medium">{design.name}</div>
+              <div className="text-xs">{width}×{height}cm</div>
+            </div>
+          </div>
+        )}
         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-200 rounded-lg flex items-center justify-center">
           <ZoomIn className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-        </div>
-        {/* Show placeholder text if image fails */}
-        <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-400 bg-gray-100 rounded">
-          <div className="text-center">
-            <div className="font-medium">{design.name}</div>
-            <div className="text-xs">{width}×{height}cm</div>
-          </div>
         </div>
       </div>
     );

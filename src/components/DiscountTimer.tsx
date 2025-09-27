@@ -18,32 +18,7 @@ const DiscountTimerComponent: React.FC<DiscountTimerProps> = ({
   const [discount, setDiscount] = useState(discountService.getCurrentFakeDiscount());
   const [isBlinking, setIsBlinking] = useState(false);
 
-  useEffect(() => {
-    // Подписываемся на обновления таймера
-    const unsubscribe = discountService.onTimerChange((updatedTimer) => {
-      setTimer(updatedTimer);
-      
-      // Если время истекло
-      if (!updatedTimer.isActive && timer.isActive) {
-        if (onTimerEnd) {
-          onTimerEnd();
-        }
-      }
-      
-      // Включаем мигание если осталось меньше минуты
-      setIsBlinking(updatedTimer.totalSeconds > 0 && updatedTimer.totalSeconds <= 60);
-    });
-
-    // Получаем начальное состояние
-    setTimer(discountService.getDiscountTimer());
-    setDiscount(discountService.getCurrentFakeDiscount());
-
-    return unsubscribe;
-  }, [onTimerEnd, timer.isActive]);
-
-  if (!timer.isActive || !discount) {
-    return null;
-  }
+  // Нельзя делать ранний return до хуков — сначала объявим мемо/эффекты ниже
 
   const getSizeClasses = () => {
     switch (size) {
@@ -73,8 +48,56 @@ const DiscountTimerComponent: React.FC<DiscountTimerProps> = ({
 
   const sizes = getSizeClasses();
 
-  // Рассчитываем прогресс для анимации
-  const progressPercentage = showProgress && discount ? (timer.totalSeconds / (2 * 60 * 60)) * 100 : 0; // Assuming 2 hours max
+  // Общая длительность акции по данным БД (startDate/endDate)
+  const totalDurationSeconds = React.useMemo(() => {
+    if (!discount?.startDate || !discount?.endDate) return 0;
+    const start = new Date(discount.startDate as any).getTime();
+    const end = new Date(discount.endDate as any).getTime();
+    const total = Math.max(0, Math.floor((end - start) / 1000));
+    return total;
+  }, [discount?.startDate, discount?.endDate]);
+
+  // Порог мигания: максимум(60с, 3% от общей длительности), но не больше всей длительности
+  const blinkThreshold = React.useMemo(() => {
+    if (totalDurationSeconds <= 0) return 0;
+    const threePercent = Math.floor(totalDurationSeconds * 0.03);
+    return Math.min(totalDurationSeconds, Math.max(60, threePercent));
+  }, [totalDurationSeconds]);
+
+  // Рассчитываем прогресс для анимации (от 0% в начале до 100% к окончанию)
+  const progressPercentage =
+    showProgress && discount && totalDurationSeconds > 0
+      ? Math.min(100, Math.max(0, (1 - (timer.totalSeconds / totalDurationSeconds)) * 100))
+      : 0;
+
+  // Подписка на таймер после инициализации вычислений
+  useEffect(() => {
+    const unsubscribe = discountService.onTimerChange((updatedTimer) => {
+      setTimer(updatedTimer);
+      // Подхватываем актуальную скидку на каждом тике
+      setDiscount(discountService.getCurrentFakeDiscount());
+
+      if (!updatedTimer.isActive && timer.isActive) {
+        onTimerEnd?.();
+      }
+
+      setIsBlinking(
+        updatedTimer.totalSeconds > 0 && blinkThreshold > 0 && updatedTimer.totalSeconds <= blinkThreshold
+      );
+    });
+
+  // Начальное состояние
+    setTimer(discountService.getDiscountTimer());
+  setDiscount(discountService.getCurrentFakeDiscount());
+  // Принудительно подтянем скидку из БД на монтировании (обходит кеш при необходимости)
+  discountService.refreshFakeDiscount(false).catch(() => {/* no-op */});
+
+    return unsubscribe;
+  }, [blinkThreshold, onTimerEnd, timer.isActive]);
+
+  if (!timer.isActive || !discount) {
+    return null;
+  }
 
   return (
     <div className={`relative overflow-hidden ${className}`}>

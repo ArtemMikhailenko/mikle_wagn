@@ -258,11 +258,16 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
           console.log('⚠️ Direct fetch failed, trying proxy method:', directError instanceof Error ? directError.message : 'Unknown error');
           
           try {
-            // Метод 2: Загрузка через proxy сервер
-            const proxyUrl = `http://localhost:3001/proxy-svg?url=${encodeURIComponent(svgImageUrl)}`;
+            // Метод 2: Загрузка через proxy сервер (Vercel Edge, fallback to local)
+            const apiBase = typeof window !== 'undefined' && window.location && window.location.origin
+              ? window.location.origin
+              : '';
+            const edgeUrl = `${apiBase}/api/proxy-svg?url=${encodeURIComponent(svgImageUrl)}`;
+            const localUrl = `http://localhost:3001/proxy-svg?url=${encodeURIComponent(svgImageUrl)}`;
+            let proxyUrl = edgeUrl;
             console.log('🌐 Trying proxy URL:', proxyUrl);
             
-            const response = await fetch(proxyUrl, {
+            let response = await fetch(proxyUrl, {
               method: 'GET',
               headers: {
                 'Accept': 'image/svg+xml,text/plain,*/*'
@@ -270,7 +275,13 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
             });
             
             if (!response.ok) {
-              throw new Error(`Proxy fetch failed: HTTP ${response.status}`);
+              // try local fallback in dev
+              console.log('❌ Edge proxy failed, trying local proxy:', response.status, response.statusText);
+              const resp2 = await fetch(localUrl, { headers: { 'Accept': 'image/svg+xml,text/plain,*/*' } });
+              if (!resp2.ok) {
+                throw new Error(`Proxy fetch failed: HTTP ${response.status}`);
+              }
+              response = resp2 as any;
             }
             
             const svgText = await response.text();

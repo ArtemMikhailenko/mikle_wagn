@@ -168,43 +168,7 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
             </div>
           </div>
           
-          {/* Fake Discount Banner */}
-          {discountService.isFakeDiscountActive() && (
-            <div className="bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg p-4 mt-4 shadow-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-lg font-bold">🔥 LIMITIERTES ANGEBOT</span>
-                  <span className="bg-white/20 px-2 py-1 rounded-full text-sm font-medium">
-                    {discountService.getCurrentFakeDiscount()?.percentage}% Rabatt
-                  </span>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm opacity-90">Nur noch:</div>
-                  <div className="text-xl font-bold">
-                    {(() => {
-                      const discount = discountService.getCurrentFakeDiscount();
-                      if (!discount) return '00:00:00';
-                      
-                      const now = new Date();
-                      const end = new Date(discount.endDate);
-                      const diff = end.getTime() - now.getTime();
-                      
-                      if (diff <= 0) return '00:00:00';
-                      
-                      const hours = Math.floor(diff / (1000 * 60 * 60));
-                      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-                      
-                      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                    })()}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-2 text-sm opacity-90">
-                💎 Exklusives Angebot - Nur für kurze Zeit!
-              </div>
-            </div>
-          )}
+          {/* Banner со скидкой убран — дизайн перенесён в расчётный блок ниже */}
           
           <button
             onClick={onBackToDesign}
@@ -481,12 +445,58 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-lg p-6 sticky top-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Bestellübersicht</h2>
+            {discountService.isFakeDiscountActive() && (() => {
+              const cfg = discountService.getCurrentFakeDiscount();
+              if (!cfg) return null;
+              const now = new Date().getTime();
+              const end = new Date(cfg.endDate).getTime();
+              const diff = Math.max(0, Math.floor((end - now) / 1000));
+              const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+              const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+              const s = Math.floor(diff % 60).toString().padStart(2, '0');
+              return (
+                <div className="mb-3">
+                  <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-semibold">
+                        🔥 {cfg.name || 'Angebot'}
+                      </span>
+                      <span className="text-rose-700 text-sm font-semibold">{cfg.percentage}% Rabatt</span>
+                    </div>
+                    <div className="text-rose-700 text-xs font-mono">
+                      ⏱ {h}:{m}:{s}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             
             {/* Price Summary */}
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-gray-700">
-                <span>Schilder ({signPrices.filter(s => s.isEnabled).length + (isCurrentDesignInList ? 0 : 1)}):</span>
-                <span className="font-semibold">€{enabledSignsTotal.toFixed(2)}</span>
+                <span className="flex items-center gap-2">
+                  Schilder ({signPrices.filter(s => s.isEnabled).length + (isCurrentDesignInList ? 0 : 1)})
+                  {discountService.isFakeDiscountActive() && (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 text-xs font-semibold border border-rose-200">
+                      -{discountService.getCurrentFakeDiscount()?.percentage}%
+                    </span>
+                  )}
+                  :
+                </span>
+                {discountService.isFakeDiscountActive() && discountService.getCurrentFakeDiscount() ? (
+                  (() => {
+                    const cfg = discountService.getCurrentFakeDiscount()!;
+                    const fakeItemsDisplay = enabledSignsTotal + (enabledSignsTotal * cfg.percentage) / 100;
+                    return (
+                      <span className="text-right">
+                        <span className="block text-sm text-gray-400 line-through">€{fakeItemsDisplay.toFixed(2)}</span>
+                        <span className="font-semibold">€{enabledSignsTotal.toFixed(2)}</span>
+                      </span>
+                    );
+                  })()
+                ) : (
+                  <span className="font-semibold">€{enabledSignsTotal.toFixed(2)}</span>
+                )}
               </div>
               
               {additionalCosts > 0 && (
@@ -498,8 +508,37 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
               
               <div className="flex justify-between text-gray-700 border-t pt-3">
                 <span>Zwischensumme vor Rabatt:</span>
-                <span className="font-semibold">€{subtotalBeforeDiscount.toFixed(2)}</span>
+                {discountService.isFakeDiscountActive() && discountService.getCurrentFakeDiscount() ? (
+                  (() => {
+                    const cfg = discountService.getCurrentFakeDiscount()!;
+                    const fakeSubtotalDisplay = subtotalBeforeDiscount + (enabledSignsTotal * cfg.percentage) / 100;
+                    return (
+                      <span className="text-right">
+                        <span className="block text-sm text-gray-400 line-through">€{fakeSubtotalDisplay.toFixed(2)}</span>
+                        <span className="font-semibold">€{subtotalBeforeDiscount.toFixed(2)}</span>
+                      </span>
+                    );
+                  })()
+                ) : (
+                  <span className="font-semibold">€{subtotalBeforeDiscount.toFixed(2)}</span>
+                )}
               </div>
+
+              {/* Marketingrabatt (визуальный, не влияет на оплату) */}
+              {discountService.isFakeDiscountActive() && (() => {
+                const cfg = discountService.getCurrentFakeDiscount();
+                if (!cfg) return null;
+                const marketingDiscountAmount = (enabledSignsTotal * cfg.percentage) / 100;
+                if (marketingDiscountAmount <= 0) return null;
+                return (
+                  <div className="flex justify-between items-center bg-red-50 text-red-700 rounded-md px-3 py-2">
+                    <span>
+                      Marketingrabatt ({cfg.name || `${cfg.percentage}%`}):
+                    </span>
+                    <span className="font-semibold">-€{marketingDiscountAmount.toFixed(2)}</span>
+                  </div>
+                );
+              })()}
 
               {/* Discount Display */}
               {discountAmount > 0 && (

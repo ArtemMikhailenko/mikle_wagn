@@ -63,7 +63,7 @@ class DiscountService {
   private timerInterval: NodeJS.Timeout | null = null;
   private onTimerUpdate: ((timer: DiscountTimer) => void) | null = null;
   private lastFakeDiscountCheck: Date | null = null;
-  private readonly FAKE_DISCOUNT_CACHE_DURATION = 30 * 1000; // 30 секунд
+  private readonly FAKE_DISCOUNT_CACHE_DURATION = 5 * 1000; // 5 секунд, чтобы быстрее подхватывать изменения
 
   constructor() {
     // Загружаем текущую фиктивную скидку из базы данных
@@ -362,16 +362,16 @@ class DiscountService {
   /**
    * Загружает текущую фиктивную скидку из базы данных
    */
-  private async loadCurrentFakeDiscount(): Promise<void> {
+  private async loadCurrentFakeDiscount(force: boolean = false): Promise<void> {
     try {
       // Проверяем кеш
-      if (this.lastFakeDiscountCheck && 
+      if (!force && this.lastFakeDiscountCheck && 
           (Date.now() - this.lastFakeDiscountCheck.getTime()) < this.FAKE_DISCOUNT_CACHE_DURATION) {
         return;
       }
-
+      const nowIso = new Date().toISOString();
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts?select=*&is_active=eq.true&end_date=gte.${new Date().toISOString()}&order=created_at.desc&limit=1`,
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts?select=*&is_active=eq.true&start_date=lte.${nowIso}&end_date=gte.${nowIso}&order=start_date.desc&order=created_at.desc&limit=1`,
         {
           headers: {
             'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -400,18 +400,21 @@ class DiscountService {
           return;
         }
       } else if (response.status === 404) {
-        // Таблица не существует, используем localStorage как fallback
-        console.warn('⚠️ Таблица fake_discounts не найдена, используем localStorage как временное решение');
-        this.loadFromLocalStorage();
+        // Таблица не существует, игнорируем и не показываем скидку по умолчанию
+        console.warn('⚠️ Таблица fake_discounts не найдена. Скидка не будет показана.');
+        this.currentFakeDiscount = null;
+        this.lastFakeDiscountCheck = new Date();
         return;
       }
-      
-      // Если ничего не найдено, устанавливаем дефолтную скидку
-      this.setDefaultFakeDiscount();
+
+      // Если ничего не найдено — активной скидки нет
+      this.currentFakeDiscount = null;
+      this.lastFakeDiscountCheck = new Date();
       
     } catch (error) {
-      console.warn('⚠️ Ошибка загрузки фиктивной скидки из БД, используем localStorage:', error);
-      this.loadFromLocalStorage();
+      console.warn('⚠️ Ошибка загрузки фиктивной скидки из БД. Не показываем дефолтную скидку.', error);
+      this.currentFakeDiscount = null;
+      this.lastFakeDiscountCheck = new Date();
     }
   }
 
@@ -429,12 +432,10 @@ class DiscountService {
           endDate: new Date(parsed.endDate),
         };
         console.log('💰 Loaded fake discount from localStorage:', this.currentFakeDiscount);
-      } else {
-        this.setDefaultFakeDiscount();
-      }
+      } // если нет сохранённой — оставляем currentFakeDiscount как null
     } catch (error) {
       console.error('❌ Error loading fake discount from localStorage:', error);
-      this.setDefaultFakeDiscount();
+      this.currentFakeDiscount = null;
     }
   }
 
@@ -668,11 +669,14 @@ class DiscountService {
     }
 
     this.timerInterval = setInterval(() => {
+      // Периодически обновляем фиктивную скидку с учетом кеша
+      this.loadCurrentFakeDiscount(false).catch(() => {/* swallow */});
+
       const timer = this.getDiscountTimer();
       
       // Если время истекло, перезагружаем скидки из базы
       if (!timer.isActive && this.currentFakeDiscount) {
-        this.loadCurrentFakeDiscount();
+        this.loadCurrentFakeDiscount(true).catch(() => {/* swallow */});
       }
 
       // Уведомляем подписчиков об обновлении таймера
@@ -680,6 +684,18 @@ class DiscountService {
         this.onTimerUpdate(timer);
       }
     }, 1000);
+  }
+
+  /**
+   * Публичный метод для принудительного обновления фиктивной скидки
+   */
+  async refreshFakeDiscount(force: boolean = false): Promise<void> {
+    await this.loadCurrentFakeDiscount(force);
+    // Нотифицируем подписчиков актуальным значением таймера
+    const timer = this.getDiscountTimer();
+    if (this.onTimerUpdate) {
+      this.onTimerUpdate(timer);
+    }
   }
 
   /**

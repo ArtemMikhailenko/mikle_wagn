@@ -58,8 +58,9 @@ const DiscountAdminPanel: React.FC = () => {
 
   const loadFakeDiscount = async () => {
     try {
+      const nowIso = new Date().toISOString();
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts?select=*&is_active=eq.true&end_date=gte.${new Date().toISOString()}&order=created_at.desc&limit=1`,
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/fake_discounts?select=*&is_active=eq.true&start_date=lte.${nowIso}&end_date=gte.${nowIso}&order=start_date.desc&order=created_at.desc&limit=1`,
         {
           headers: {
             'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -152,7 +153,9 @@ const DiscountAdminPanel: React.FC = () => {
       );
 
       if (response.ok) {
-        loadFakeDiscount();
+        // Обновляем локальное состояние и сервис скидок
+        await loadFakeDiscount();
+        await discountService.refreshFakeDiscount(true);
         setMessage('✅ Фиктивная скидка запущена!');
       } else {
         throw new Error('Failed to create fake discount');
@@ -188,7 +191,8 @@ const DiscountAdminPanel: React.FC = () => {
         }
       );
 
-      loadFakeDiscount();
+  await loadFakeDiscount();
+  await discountService.refreshFakeDiscount(true);
       setMessage('⏹️ Фиктивная скидка остановлена!');
     } catch (error) {
       console.error('Error stopping fake discount:', error);

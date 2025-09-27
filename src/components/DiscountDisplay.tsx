@@ -20,6 +20,12 @@ const DiscountDisplay: React.FC<DiscountDisplayProps> = ({
   useEffect(() => {
     loadDiscounts();
     loadFakeDiscount();
+
+    // Подписываемся на обновления таймера/скидки, чтобы мгновенно обновлять отображение
+    const unsubscribe = discountService.onTimerChange(() => {
+      loadFakeDiscount();
+    });
+    return unsubscribe;
   }, [orderTotal]);
 
   const loadDiscounts = async () => {
