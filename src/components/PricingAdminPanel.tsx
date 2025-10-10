@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, Database, Clock, CheckCircle, AlertCircle, Settings } from 'lucide-react';
 import { finalPricingService } from '../services/finalPricingService';
+import LottieLoader from './LottieLoader';
 
 const PricingAdminPanel: React.FC = () => {
   const [status, setStatus] = useState<any>(null);
@@ -59,7 +60,7 @@ const PricingAdminPanel: React.FC = () => {
             disabled={loading}
             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? <LottieLoader size={16} label="" /> : <RefreshCw className="h-4 w-4" />}
             <span>{loading ? 'Refreshing...' : 'Refresh Prices'}</span>
           </button>
         </div>

@@ -74,8 +74,13 @@ const CartCheckout: React.FC<CartCheckoutProps> = ({
     .reduce((total, sign) => total + sign.price, 0) + 
     (isCurrentDesignInList ? 0 : currentDesignPrice);
 
-  // Get largest dimensions for shipping calculation
-  const longestSide = Math.max(config.customWidth, config.calculatedHeight);
+  // Get largest dimensions for shipping calculation (consider all enabled signs; fallback to current config)
+  const longestSide = React.useMemo(() => {
+    const enabled = signPrices.filter(s => s.isEnabled);
+    const fromSigns = enabled.length > 0 ? Math.max(...enabled.map(s => Math.max(s.width, s.height))) : 0;
+    const fromCurrent = Math.max(config.customWidth, config.calculatedHeight);
+    return Math.max(fromSigns, fromCurrent);
+  }, [signPrices, config.customWidth, config.calculatedHeight]);
   
   // Get distance info if postal code is available
   const distanceInfo = config.customerPostalCode 

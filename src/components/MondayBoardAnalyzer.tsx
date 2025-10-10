@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import LottieLoader from './LottieLoader';
 import { Search, Database, Eye } from 'lucide-react';
 
 const MondayBoardAnalyzer: React.FC = () => {
@@ -94,7 +95,7 @@ const MondayBoardAnalyzer: React.FC = () => {
           >
             {loading ? (
               <>
-                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                <LottieLoader size={16} label="" />
                 <span>Анализирую...</span>
               </>
             ) : (

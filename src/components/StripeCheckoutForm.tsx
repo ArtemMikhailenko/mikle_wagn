@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import LottieLoader from './LottieLoader';
 import { useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import { CreditCard, Lock, CheckCircle2 } from 'lucide-react';
 import { createPaymentIntent, isStripeAvailable } from '../services/stripeService';
@@ -275,7 +276,7 @@ const StripeCheckoutForm: React.FC<StripeCheckoutFormProps> = ({
       >
         {processing ? (
           <div className="flex items-center justify-center space-x-2">
-            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+            <LottieLoader size={16} label="" />
             <span>Verarbeitung...</span>
           </div>
         ) : (

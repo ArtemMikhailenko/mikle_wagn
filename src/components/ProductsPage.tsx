@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LottieLoader from './LottieLoader';
 import { STRIPE_PRODUCTS, StripeProduct } from '../stripe-config';
 import { ShoppingCart, CreditCard, Package, User, LogOut } from 'lucide-react';
 
@@ -228,7 +229,7 @@ const ProductsPage: React.FC = () => {
                 >
                   {loading === product.id ? (
                     <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <LottieLoader size={20} label="" />
                       <span>Processing...</span>
                     </>
                   ) : (

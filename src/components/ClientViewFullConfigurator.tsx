@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import LottieLoader from './LottieLoader';
 import { useParams } from 'react-router-dom';
 import CustomerHeaderClient from './CustomerHeaderClient';
 import MondayStatus from './MondayStatus';
@@ -290,8 +291,7 @@ export default function ClientViewFullConfigurator() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Projekt wird geladen...</p>
+          <LottieLoader size={96} label="Projekt wird geladen..." />
         </div>
       </div>
     );

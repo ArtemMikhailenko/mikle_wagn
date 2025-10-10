@@ -729,8 +729,7 @@ export function calculatePriceBreakdown(config: ConfigurationState): PriceBreakd
     installation = mondayService.calculateInstallationCost(areaM2, config.customerPostalCode);
   }
   
-  // Express production cost
-  const expressProduction = config.expressProduction ? mondayService.getExpressProductionCost() : 0;
+  // Express production cost (handled via surcharge above)
   
   // Shipping cost (0 if installation is included)
   let shipping = 0;

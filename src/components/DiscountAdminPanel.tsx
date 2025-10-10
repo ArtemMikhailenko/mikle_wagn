@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LottieLoader from './LottieLoader';
 import { Percent, Plus, Edit3, Trash2, Save, X, Timer, Clock, Play, Pause } from 'lucide-react';
 import { discountService, FakeDiscountConfiguration } from '../services/discountService';
 
@@ -859,8 +860,7 @@ VALUES ('Flash Sale - Nur heute!', 25, NOW(), NOW() + INTERVAL '2 hours', true);
         <div className="space-y-4">
           {loading && discounts.length === 0 ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-              <p className="text-gray-600 mt-2">Загрузка скидок...</p>
+              <LottieLoader size={32} label="Загрузка скидок..." />
             </div>
           ) : discounts.length === 0 ? (
             <div className="text-center py-8">

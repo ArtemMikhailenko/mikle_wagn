@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw, ExternalLink, Copy, Check, Database, Settings, Users, Calendar } from 'lucide-react';
 import makeService, { CRMProjectData } from '../services/makeService';
 import mondayService from '../services/mondayService';
+import LottieLoader from './LottieLoader';
 
 const MakeAdminPanel: React.FC = () => {
   const [makeStatus, setMakeStatus] = useState<any>(null);
@@ -71,7 +72,7 @@ const MakeAdminPanel: React.FC = () => {
   if (loading) {
     return (
       <div className="p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <LottieLoader size={32} label="" />
       </div>
     );
   }

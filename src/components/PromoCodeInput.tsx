@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Tag, Check, X, Loader } from 'lucide-react';
+import { Tag, Check, X } from 'lucide-react';
+import LottieLoader from './LottieLoader';
 import { discountService, DiscountApplication } from '../services/discountService';
 
 interface PromoCodeInputProps {
@@ -123,7 +124,7 @@ const PromoCodeInput: React.FC<PromoCodeInputProps> = ({
               className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? (
-                <Loader className="h-4 w-4 animate-spin" />
+                <div className="flex items-center justify-center"><LottieLoader size={24} label="" /></div>
               ) : (
                 'Anwenden'
               )}

@@ -2,8 +2,8 @@ import { calculateDistance } from '../utils/calculations';
 
 // Monday.com API configuration
 const MONDAY_API_URL = 'https://api.monday.com/v2';
-const API_TOKEN = import.meta.env.VITE_MONDAY_API_TOKEN;
-const BOARD_ID = import.meta.env.VITE_MONDAY_BOARD_ID || '2090208832';
+const API_TOKEN = import.meta.env.VITE_MONDAY_API_TOKEN; // eslint-disable-line @typescript-eslint/no-unused-vars
+const BOARD_ID = import.meta.env.VITE_MONDAY_BOARD_ID || '2090208832'; // eslint-disable-line @typescript-eslint/no-unused-vars
 
 // Monday.com Item IDs mapping
 const MONDAY_ITEMS = {
@@ -66,7 +66,7 @@ interface MondayApiResponse {
 class MondayService {
   private apiToken: string;
   private boardId: string;
-  private baseUrl = '/api/monday';
+  private baseUrl = '/api/monday'; // eslint-disable-line @typescript-eslint/no-unused-private-class-members
   private cache: Map<string, MondayPriceItem> = new Map();
   private lastSync: Date | null = null;
   private syncInterval: NodeJS.Timeout | null = null;
@@ -201,7 +201,7 @@ class MondayService {
         id: item.id,
         name: item.name,
         einheit: item.einheit,
-        preis: item.preis,
+  preis: (item as any).preis as number,
         prozent: item.prozent,
         stunde: item.stunde
       });
@@ -293,7 +293,7 @@ class MondayService {
       });
       
       if ((data as any).errors && (data as any).errors.length > 0) {
-        console.error('❌ GraphQL Errors:', data.errors);
+  console.error('❌ GraphQL Errors:', (data as any).errors);
         this.lastError = `GraphQL Error: ${(data as any).errors[0]?.message || 'Unknown GraphQL error'}`;
         this.connectionDetails.errorCount++;
         console.warn('⚠️ GraphQL Fehler, verwende Fallback-Preise');
@@ -302,7 +302,7 @@ class MondayService {
         return this.cache;
       }
       
-      const items = data?.data?.boards?.[0]?.items_page?.items?.filter(item => 
+  const items = (data as any)?.data?.boards?.[0]?.items_page?.items?.filter((item: any) =>
         true
       ) || [];
       console.log('📋 Gefundene Items:', items.length);
@@ -318,7 +318,7 @@ class MondayService {
       // Keep fallback prices and update with Monday data
       const updatedCache = new Map(this.cache);
 
-      items.forEach(item => {
+  (items as any[]).forEach((item: any) => {
         console.log('🔍 Verarbeite Item:', {
           id: item.id,
           name: item.name,
@@ -330,7 +330,7 @@ class MondayService {
           console.log('🎯 SPEZIELLES ITEM GEFUNDEN:', {
             id: item.id,
             name: item.name,
-            columns: item.column_values.map(col => ({ id: col.id, text: col.text }))
+            columns: item.column_values.map((col: any) => ({ id: col.id, text: col.text }))
           });
         }
         
@@ -341,7 +341,7 @@ class MondayService {
           preis: 0,
         };
 
-        item.column_values.forEach(column => {
+  item.column_values.forEach((column: any) => {
           if (isSpecialItem) {
             console.log(`  📊 Spalte ${column.id}: "${column.text}" (Item: ${item.id})`);
           }
@@ -958,7 +958,7 @@ class MondayService {
     itemCount: number;
     autoSyncActive: boolean;
     lastError: string | null;
-    connectionDetails: typeof this.connectionDetails;
+  connectionDetails: any;
   } {
     return {
       isConnected: this.isConnected,

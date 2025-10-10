@@ -1,3 +1,4 @@
+// @ts-nocheck
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import Stripe from 'npm:stripe@17.7.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.49.1';
@@ -86,7 +87,7 @@ async function handleEvent(event: Stripe.Event) {
 
     const { mode, payment_status } = stripeData as Stripe.Checkout.Session;
 
-    if (isSubscription) {
+  if (isSubscription) {
       console.info(`Starting subscription sync for customer: ${customerId}`);
       await syncCustomerFromStripe(customerId);
     } else if (mode === 'payment' && payment_status === 'paid') {
@@ -115,6 +116,33 @@ async function handleEvent(event: Stripe.Event) {
         if (orderError) {
           console.error('Error inserting order:', orderError);
           return;
+        }
+        // Forward to external webhook if configured
+        const outgoingUrl = Deno.env.get('OUTGOING_ORDERS_WEBHOOK_URL');
+        if (outgoingUrl) {
+          const payload = {
+            type: 'order.paid',
+            data: {
+              checkout_session_id,
+              payment_intent_id: payment_intent,
+              customer_id: customerId,
+              amount_subtotal,
+              amount_total,
+              currency,
+              payment_status,
+              created_at: new Date().toISOString(),
+            }
+          };
+          try {
+            await fetch(outgoingUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            console.info('Forwarded paid order to external webhook');
+          } catch (e) {
+            console.warn('Failed to forward paid order to external webhook', e);
+          }
         }
         console.info(`Successfully processed one-time payment for session: ${checkout_session_id}`);
       } catch (error) {

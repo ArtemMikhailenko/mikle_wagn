@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LottieLoader from './LottieLoader';
 import { RefreshCw, CheckCircle, AlertCircle, Clock, Database, Server, Wifi, WifiOff } from 'lucide-react';
 import mondayService from '../services/mondayService';
 
@@ -88,7 +89,7 @@ const MondayStatus: React.FC = () => {
         <span className="text-green-500">●</span>
       )}
       {isManualSyncing && (
-        <RefreshCw className="h-3 w-3 animate-spin text-yellow-500" />
+        <LottieLoader size={12} label="" />
       )}
     </div>
   );

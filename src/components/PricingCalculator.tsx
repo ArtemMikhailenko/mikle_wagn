@@ -5,6 +5,7 @@ import { getShippingInfo, calculateArea, calculateDistance, calculateRealDistanc
 import { calculateRealSingleSignPriceSync } from '../utils/realCalculations';
 import { mondayService } from '../services/mondayService';
 import SVGPreview from './SVGPreview';
+import LottieLoader from './LottieLoader';
 
 interface PricingCalculatorProps {
   config: ConfigurationState;
@@ -439,7 +440,7 @@ const PricingCalculator: React.FC<PricingCalculatorProps> = ({
                         <h5 className="text-base lg:text-lg font-semibold text-gray-800">Routenübersicht</h5>
                         {routeInfo?.cityName === 'Berechne...' && (
                           <div className="flex items-center justify-center space-x-2 mt-2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                            <LottieLoader size={16} label="" />
                             <span className="text-sm text-gray-600">Berechne echte Route...</span>
                           </div>
                         )}

@@ -25,6 +25,13 @@ const AdminDashboard: React.FC = () => {
       color: 'bg-blue-500 hover:bg-blue-600'
     },
     {
+      title: 'Orders (Paid)',
+      description: 'Просмотр оплаченных заказов',
+      path: '/admin/orders',
+      icon: CreditCard,
+      color: 'bg-pink-500 hover:bg-pink-600'
+    },
+    {
       title: 'Pricing Admin Panel', 
       description: 'Управление ценами и калькуляциями',
       path: '/admin/pricing',

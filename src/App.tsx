@@ -38,6 +38,8 @@ import DatabaseSetup from './components/DatabaseSetup';
 import SupabaseConnectionTest from './components/SupabaseConnectionTest';
 import MondayBoardAnalyzer from './components/MondayBoardAnalyzer';
 import AdminDashboard from './components/AdminDashboard';
+import LottieLoader from './components/LottieLoader';
+import OrdersAdminPanel from './components/OrdersAdminPanel';
 import mondayService from './services/mondayService';
 import makeService from './services/makeService';
 import directCrmService from './services/directCrmService';
@@ -89,14 +91,14 @@ function App() {
   }, [supabase]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 flex items-center justify-center">
+          <div>
+            {/* Lottie loader */}
+            <LottieLoader size={120} label="Loading..." />
+          </div>
         </div>
-      </div>
-    );
+      );
   }
 
   return (
@@ -122,7 +124,8 @@ function App() {
         <Route path="/admin/discounts" element={<DiscountAdminPanel />} />
         <Route path="/admin/database-setup" element={<DatabaseSetup />} />
         <Route path="/admin/supabase-test" element={<SupabaseConnectionTest />} />
-        <Route path="/admin/board-analyzer" element={<MondayBoardAnalyzer />} />
+  <Route path="/admin/board-analyzer" element={<MondayBoardAnalyzer />} />
+  <Route path="/admin/orders" element={<OrdersAdminPanel />} />
         <Route path="/test/pricing" element={<PricingTestPage />} />
         <Route path="/test/stripe" element={<StripeTestPage />} />
         {/* Client view for CRM links */}
@@ -1344,8 +1347,7 @@ function NeonConfiguratorWithProject() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Загрузка проекта...</p>
+          <LottieLoader size={300} label="" />
         </div>
       </div>
     );

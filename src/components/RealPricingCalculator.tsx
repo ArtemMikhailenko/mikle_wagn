@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Euro, Loader, AlertCircle, CheckCircle } from 'lucide-react';
+import { Calculator, Euro, AlertCircle, CheckCircle } from 'lucide-react';
+import LottieLoader from './LottieLoader';
 import { optimizedMondayService, MondayPriceItem } from '../services/optimizedMondayService';
 import { ConfigurationState } from '../types/configurator';
 
@@ -140,7 +141,7 @@ export default function RealPricingCalculator({ config, selectedDesign }: RealPr
           <h3 className="text-lg font-semibold">Preiskalkulation</h3>
         </div>
         <div className="flex items-center justify-center py-8">
-          <Loader className="w-6 h-6 animate-spin text-blue-400" />
+          <LottieLoader size={24} label="" />
           <span className="ml-2 text-gray-400">Preise werden geladen...</span>
         </div>
       </div>

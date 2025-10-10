@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import LottieLoader from './LottieLoader';
 import { Copy, Mail, Eye, RefreshCw, Database, Search, X } from 'lucide-react';
 import { directCrmService, CRMProjectData } from '../services/directCrmService';
 
@@ -175,7 +176,7 @@ Ihr Nontel Team
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-400" />
+              <LottieLoader size={32} className="mx-auto mb-4" label="" />
               <h2 className="text-xl font-semibold mb-2">Lade Projekte aus Monday.com...</h2>
               <p className="text-gray-400">Direkte API Verbindung</p>
             </div>
@@ -209,7 +210,7 @@ Ihr Nontel Team
               disabled={syncing}
               className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm lg:text-base font-medium touch-manipulation min-h-[44px] sm:min-h-[auto]"
             >
-              <RefreshCw className={`w-4 h-4 flex-shrink-0 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? <LottieLoader size={16} className="flex-shrink-0" label="" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
               <span className="hidden sm:inline whitespace-nowrap">{syncing ? 'Synchronisierung...' : 'Synchronisierung mit Monday.com'}</span>
               <span className="sm:hidden">{syncing ? 'Sync...' : 'Monday'}</span>
             </button>
@@ -386,7 +387,7 @@ Ihr Nontel Team
               disabled={syncing}
               className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 px-6 py-3 rounded-lg flex items-center gap-2 mx-auto transition-colors"
             >
-              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? <LottieLoader size={16} label="" /> : <RefreshCw className="w-4 h-4" />}
               Mit Monday.com synchronisieren
             </button>
           </div>

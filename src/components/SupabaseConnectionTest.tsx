@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import LottieLoader from './LottieLoader';
 
 // Temporary component to test Supabase connection
 const SupabaseConnectionTest: React.FC = () => {
@@ -54,7 +55,7 @@ const SupabaseConnectionTest: React.FC = () => {
           'bg-red-50 border border-red-200'
         }`}>
           <div className="flex items-center space-x-2">
-            {status === 'connecting' && <span className="animate-spin">⏳</span>}
+            {status === 'connecting' && <LottieLoader size={16} className="inline-block" label="" />}
             {status === 'connected' && <span>✅</span>}
             {status === 'error' && <span>❌</span>}
             <span className="font-medium">

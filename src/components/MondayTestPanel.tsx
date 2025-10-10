@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Wifi, WifiOff, RefreshCw, Database, Clock } from 'lucide-react';
 import { optimizedMondayService, MondayPriceItem } from '../services/optimizedMondayService';
+import LottieLoader from './LottieLoader';
 
 export default function MondayTestPanel() {
   const [status, setStatus] = useState<any>(null);
@@ -127,7 +128,7 @@ export default function MondayTestPanel() {
             disabled={loading}
             className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? <LottieLoader size={16} label="" /> : <RefreshCw className="w-4 h-4" />}
             Daten aktualisieren
           </button>
         </div>
