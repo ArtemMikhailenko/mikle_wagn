@@ -756,40 +756,53 @@ class MondayService {
     return this.cache.get('power_1000w')?.preis || 200;
   }
 
-  // Shipping costs based on size
+  // Shipping costs based on size (ranges aligned to Monday keys)
   getShippingPrice(longestSideCm: number): { method: string; price: number; description: string } {
-    if (longestSideCm < 60) {
+    // ≤ 20 cm → DHL klein
+    if (longestSideCm <= 20) {
       return {
-        method: 'DHL Klein Packet',
-        price: this.cache.get('dhl_klein_20cm')?.preis || 20,
-        description: 'DHL Klein Packet (20-59cm)'
+        method: 'DHL Paket S',
+        price: this.cache.get('dhl_klein_20cm')?.preis ?? 7.49,
+        description: 'DHL Paket S (bis 20cm)'
       };
     }
-    if (longestSideCm < 100) {
+    // 21–60 cm → DHL mittel
+    if (longestSideCm <= 60) {
       return {
-        method: 'DHL mittlere Packet',
-        price: this.cache.get('dhl_mittel_60cm')?.preis || 40,
-        description: 'DHL mittlere Packet (60-99cm)'
+        method: 'DHL Paket M',
+        price: this.cache.get('dhl_mittel_60cm')?.preis ?? 12.99,
+        description: 'DHL Paket M (bis 60cm)'
       };
     }
-    if (longestSideCm < 120) {
+    // 61–100 cm → DHL groß
+    if (longestSideCm <= 100) {
       return {
-        method: 'DHL Große Packet',
-        price: this.cache.get('dhl_gross_100cm')?.preis || 80,
-        description: 'DHL Große Packet (100-119cm)'
+        method: 'DHL Paket L',
+        price: this.cache.get('dhl_gross_100cm')?.preis ?? 19.99,
+        description: 'DHL Paket L (bis 100cm)'
       };
     }
-    if (longestSideCm < 240) {
+    // 101–120 cm → Spedition
+    if (longestSideCm <= 120) {
       return {
         method: 'Spedition',
-        price: this.cache.get('spedition_120cm')?.preis || 160,
-        description: 'Spedition (120-239cm)'
+        price: this.cache.get('spedition_120cm')?.preis ?? 45.0,
+        description: 'Spedition (bis 120cm)'
       };
     }
+    // 121–240 cm → Gütertransport (palettiert)
+    if (longestSideCm <= 240) {
+      return {
+        method: 'Gütertransport (palettiert)',
+        price: this.cache.get('gutertransport_240cm')?.preis ?? 89.0,
+        description: 'Gütertransport (bis 240cm)'
+      };
+    }
+    // > 240 cm – fall back to distance based handling elsewhere
     return {
-      method: 'Gütertransport (palettiert)',
-      price: this.cache.get('gutertransport_240cm')?.preis || 500,
-      description: 'Gütertransport (ab 240cm)'
+      method: 'Sondertransport',
+      price: this.cache.get('gutertransport_240cm')?.preis ?? 89.0,
+      description: 'Übergröße, Preis auf Anfrage'
     };
   }
 

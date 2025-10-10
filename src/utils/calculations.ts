@@ -653,48 +653,31 @@ export function getShippingInfo(longestSideCm: number, distanceKm?: number): {
   days: string;
   requiresPostalCode: boolean;
 } {
-  // Simple shipping calculation without Monday.com dependency
-  if (longestSideCm <= 20) {
+  // Use live prices from Monday via mondayService for ≤ 240cm
+  if (longestSideCm <= 240) {
+    const { method, price, description } = mondayService.getShippingPrice(longestSideCm);
+    // Rough delivery time mapping
+    const days = method.includes('DHL') ? '1-2 Tage' : method.includes('Spedition') ? '2-3 Tage' : '3-5 Tage';
     return {
-      method: 'DHL Paket S',
-      cost: 7.49,
-      description: 'DHL Paket S (bis 20cm)',
-      days: '1-2 Tage',
-      requiresPostalCode: false
-    };
-  } else if (longestSideCm <= 60) {
-    return {
-      method: 'DHL Paket M',
-      cost: 12.99,
-      description: 'DHL Paket M (bis 60cm)',
-      days: '1-2 Tage',
-      requiresPostalCode: false
-    };
-  } else if (longestSideCm <= 100) {
-    return {
-      method: 'DHL Paket L',
-      cost: 19.99,
-      description: 'DHL Paket L (bis 100cm)',
-      days: '1-2 Tage',
-      requiresPostalCode: false
-    };
-  } else if (longestSideCm <= 120) {
-    return {
-      method: 'Spedition',
-      cost: 45.00,
-      description: 'Spedition (bis 120cm)',
-      days: '2-3 Tage',
-      requiresPostalCode: false
-    };
-  } else {
-    return {
-      method: 'Gütertransport',
-      cost: 89.00,
-      description: 'Gütertransport (bis 240cm)',
-      days: '3-5 Tage',
-      requiresPostalCode: false
+      method,
+      cost: price,
+      description,
+      days,
+      requiresPostalCode: false,
     };
   }
+
+  // For sizes > 240cm we need postal code to compute distance-based price
+  const kmRate = mondayService.getDistanceRate();
+  const hasDistance = typeof distanceKm === 'number' && isFinite(distanceKm) && distanceKm > 0;
+  const computedCost = hasDistance ? distanceKm! * kmRate : 0;
+  return {
+    method: 'Sondertransport',
+    cost: Math.round(computedCost * 100) / 100,
+    description: 'Übergröße, Preis nach Entfernung',
+    days: '3-7 Tage',
+    requiresPostalCode: !hasDistance,
+  };
 }
 
 /**

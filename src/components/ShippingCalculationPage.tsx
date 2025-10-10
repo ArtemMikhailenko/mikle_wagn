@@ -64,11 +64,13 @@ const ShippingCalculationPage: React.FC<ShippingCalculationPageProps> = ({
     .filter(sign => sign.isEnabled)
     .reduce((total, sign) => total + sign.price, 0);
 
-  // Get largest dimensions for shipping
-  const longestSide = Math.max(
-    ...signPrices.filter(s => s.isEnabled).map(s => Math.max(s.width, s.height)),
-    0
-  );
+  // Get largest dimensions for shipping (consider all enabled signs; fallback to current config)
+  const longestSide = React.useMemo(() => {
+    const enabled = signPrices.filter(s => s.isEnabled);
+    const fromSigns = enabled.length > 0 ? Math.max(...enabled.map(s => Math.max(s.width, s.height))) : 0;
+    const fromCurrent = Math.max(config.customWidth, config.calculatedHeight);
+    return Math.max(fromSigns, fromCurrent);
+  }, [signPrices, config.customWidth, config.calculatedHeight]);
 
   // Distance and shipping calculation
   const [realCityName, setRealCityName] = useState<string>('');
