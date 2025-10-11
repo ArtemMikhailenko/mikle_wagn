@@ -32,17 +32,28 @@ const LottieLoader: React.FC<LottieLoaderProps> = ({
     let cancelled = false;
     const load = async () => {
       try {
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
         const tryPaths = [
           src,
           '/AeqdDC7l8q.json',
-          '/assets/AeqdDC7l8q.json'
-        ];
+          '/assets/AeqdDC7l8q.json',
+          origin ? `${origin}/AeqdDC7l8q.json` : undefined,
+        ].filter(Boolean) as string[];
         let loaded: any | null = null;
         for (const p of tryPaths) {
           try {
             const res = await fetch(p, { cache: 'force-cache' });
             if (!res.ok) continue;
-            const json = await res.json();
+            // Guard: ensure content-type is JSON, not HTML from SPA rewrite
+            const ct = res.headers.get('content-type') || '';
+            const text = await res.text();
+            if (!/json/i.test(ct)) {
+              // Some hosts may not set JSON type correctly; detect by content
+              if (!text.trim().startsWith('{') && !text.trim().startsWith('[')) {
+                continue;
+              }
+            }
+            const json = JSON.parse(text);
             loaded = json;
             break;
           } catch {}
