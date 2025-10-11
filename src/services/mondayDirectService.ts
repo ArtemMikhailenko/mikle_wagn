@@ -596,7 +596,6 @@ class MondayDirectService {
         
         for (const col of candidate.column_values) {
           const fieldName = (col.text || '').toLowerCase();
-          const fieldValue = (col.value || '').toLowerCase();
           
           // Проверяем наличие полей UV
           if ((fieldName.includes('uv') || fieldName.includes('druck') || fieldName.includes('print')) && 
@@ -829,6 +828,38 @@ class MondayDirectService {
         );
       }
 
+      // Если не найдено, пробуем частичный ID (8 символов)
+      if (!relatedItem && projectId.length >= 8) {
+        const partialId = projectId.substring(0, 8);
+        console.log(`🔍 Mockup: Trying partial ID match: ${partialId}`);
+        relatedItem = items.find((item: any) => item.id.startsWith(partialId));
+      }
+
+      // Если не найдено, пробуем короткий ID (6 символов)
+      if (!relatedItem && projectId.length >= 6) {
+        const shortId = projectId.substring(0, 6);
+        console.log(`🔍 Mockup: Trying short ID match: ${shortId}`);
+        relatedItem = items.find((item: any) => item.id.startsWith(shortId));
+      }
+
+      // Если не найдено, пробуем частичный/короткий матч по ID (как в SVG/размерах)
+      if (!relatedItem && projectId.length >= 8) {
+        const partialId = projectId.substring(0, 8);
+        console.log(`🔍 Mockup: Trying partial ID match: ${partialId}`);
+        relatedItem = items.find((item: any) => item.id.startsWith(partialId));
+        if (relatedItem) {
+          console.log(`✅ Mockup: Found partial match: ${relatedItem.id}: ${relatedItem.name}`);
+        }
+      }
+      if (!relatedItem && projectId.length >= 6) {
+        const shortId = projectId.substring(0, 6);
+        console.log(`🔍 Mockup: Trying short ID match: ${shortId}`);
+        relatedItem = items.find((item: any) => item.id.startsWith(shortId));
+        if (relatedItem) {
+          console.log(`✅ Mockup: Found short match: ${relatedItem.id}: ${relatedItem.name}`);
+        }
+      }
+
       console.log(`🎯 Related item found:`, relatedItem ? `${relatedItem.id}: ${relatedItem.name}` : 'None');
       console.log(`🔍 Search details:`, {
         exactIdMatch: items.some(item => item.id === projectId),
@@ -940,6 +971,88 @@ class MondayDirectService {
     } catch (error) {
       console.error('❌ Error fetching mockup from Monday:', error);
       return null;
+    }
+  }
+
+  // Получить список MockUp изображений (все баннеры) из subtable
+  async getMockupListForProject(projectId: string): Promise<string[]> {
+    try {
+      console.log(`🔄 Fetching mockup LIST for project ${projectId} from subtable...`);
+
+      const query = `
+        query {
+          boards(ids: [${this.subtableBoardId}]) {
+            items_page(limit: 200) {
+              items {
+                id
+                name
+                column_values {
+                  id
+                  text
+                  value
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': this.apiToken },
+        body: JSON.stringify({ query })
+      });
+      if (!response.ok) return [];
+      const data: MondayResponse = await response.json();
+      const items = data?.data?.boards?.[0]?.items_page?.items || [];
+
+      console.log(`🧮 Subtable items for mockup list: ${items.length}`);
+      // Собираем кандидатов: точный ID, частичный/короткий ID, по имени/полям
+      const partial = projectId.slice(0, 8);
+      const short = projectId.slice(0, 6);
+      const candidates = items.filter((it: any) =>
+        it.id === projectId ||
+        it.id?.startsWith(partial) || it.id?.startsWith(short) ||
+        it.name?.includes(projectId) || it.name?.includes(partial) || it.name?.includes(short) ||
+        it.column_values?.some((cv: any) => (cv.text && (cv.text.includes(projectId) || cv.text.includes(partial) || cv.text.includes(short))) || (cv.value && cv.value.includes(projectId)))
+      );
+
+      console.log(`🧲 Mockup list candidates: ${candidates.length}`, candidates.map((c:any)=>`${c.id}: ${c.name}`));
+      if (candidates.length === 0) {
+        console.log('⚠️ No subtable candidates for mockup list');
+        return [];
+      }
+
+      const possibleFileFields = ['file_mkq71vjr', 'file_mkq6eahq', 'file_mkq6q0v2', 'file', 'mockup'];
+      const urls: string[] = [];
+
+      for (const item of candidates) {
+        for (const col of item.column_values) {
+          const isFile = col.id.includes('file') || possibleFileFields.includes(col.id);
+          if (!isFile || !col.value) continue;
+          try {
+            const fileData = JSON.parse(col.value);
+            if (fileData?.files?.length) {
+              for (const f of fileData.files) {
+                if (f.assetId) {
+                  const publicUrl = await this.getPublicAssetUrl(f.assetId);
+                  if (publicUrl) urls.push(publicUrl);
+                } else if (f.url) {
+                  urls.push(f.url);
+                }
+              }
+            }
+          } catch {}
+        }
+      }
+
+      // Уникализируем и вернем максимум 5 для UI
+      const unique = Array.from(new Set(urls));
+      console.log(`✅ Found ${unique.length} mockup images for project`);
+      return unique.slice(0, 10);
+    } catch (e) {
+      console.error('❌ Error fetching mockup list:', e);
+      return [];
     }
   }
 
@@ -1274,6 +1387,7 @@ class MondayDirectService {
         elements: 1,
         ledLength: ledLength, // Вычисленная длина LED
         mockupUrl: '', // Будет проверено в основной доске и subtable
+        mockupUrls: [],
         description: notes || `Neon design for ${clientName}`,
         svgContent: '', // Будет заполнено позже если нужно
         hasCustomSvg: false,
@@ -1309,7 +1423,9 @@ class MondayDirectService {
         try {
           const fileData = JSON.parse(mainMockupField1);
           if (fileData.files && fileData.files.length > 0) {
-            neonDesign.mockupUrl = this.createProxyUrl(fileData.files[0].url);
+            const urls = fileData.files.map((f: any) => this.createProxyUrl(f.url));
+            neonDesign.mockupUrl = neonDesign.mockupUrl || urls[0];
+            neonDesign.mockupUrls?.push(...urls);
             console.log(`✅ Found MockUp in main board (field 1): ${fileData.files[0].url}`);
           }
         } catch (e) {
@@ -1317,11 +1433,13 @@ class MondayDirectService {
         }
       }
       
-      if (!neonDesign.mockupUrl && mainMockupField2) {
+      if (mainMockupField2) {
         try {
           const fileData = JSON.parse(mainMockupField2);
           if (fileData.files && fileData.files.length > 0) {
-            neonDesign.mockupUrl = this.createProxyUrl(fileData.files[0].url);
+            const urls = fileData.files.map((f: any) => this.createProxyUrl(f.url));
+            neonDesign.mockupUrl = neonDesign.mockupUrl || urls[0];
+            neonDesign.mockupUrls?.push(...urls);
             console.log(`✅ Found MockUp in main board (field 2): ${fileData.files[0].url}`);
           }
         } catch (e) {
@@ -1336,7 +1454,9 @@ class MondayDirectService {
             try {
               const fileData = JSON.parse(fileField.value);
               if (fileData.files && fileData.files.length > 0) {
-                neonDesign.mockupUrl = this.createProxyUrl(fileData.files[0].url);
+                const urls = fileData.files.map((f: any) => this.createProxyUrl(f.url));
+                neonDesign.mockupUrl = neonDesign.mockupUrl || urls[0];
+                neonDesign.mockupUrls?.push(...urls);
                 console.log(`✅ Found MockUp in field ${fileField.id}: ${fileData.files[0].url}`);
                 break;
               }

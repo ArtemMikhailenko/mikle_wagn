@@ -6,6 +6,7 @@ export interface NeonDesign {
   elements: number;
   ledLength: number; // in meters
   mockupUrl: string; // fallback image
+  mockupUrls?: string[]; // optional multiple mockup images
   description: string;
   // SVG support
   svgContent?: string; // actual SVG content from CRM

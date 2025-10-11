@@ -12,6 +12,7 @@ export interface CRMProjectData {
   svg_content?: string;
   svg_url?: string;
   mockup_url?: string;
+  mockup_urls?: string[];
   mockup_content?: string;
   notes?: string;
   status: string;
@@ -61,6 +62,7 @@ class DirectCRMService {
           svg_content: design.svgContent || undefined,
           svg_url: design.svgUrl || undefined,
           mockup_url: design.mockupUrl || undefined,
+          mockup_urls: design.mockupUrls && design.mockupUrls.length ? design.mockupUrls : undefined,
           notes: design.description || undefined,
           status: status,
           created_at: design.createdAt || new Date().toISOString(),
@@ -107,6 +109,7 @@ class DirectCRMService {
         svg_content: design.svgContent || undefined,
         svg_url: design.svgUrl || undefined,
         mockup_url: design.mockupUrl || undefined,
+        mockup_urls: design.mockupUrls && design.mockupUrls.length ? design.mockupUrls : undefined,
         notes: design.description || undefined,
         status: status,
         created_at: design.createdAt || new Date().toISOString(),
@@ -135,6 +138,18 @@ class DirectCRMService {
       console.error('❌ Error loading mockup from Monday.com:', error);
       return null;
     }
+  }
+
+  // Загрузить список MockUp изображений для проекта
+  async loadMockupsForProject(projectId: string): Promise<string[]> {
+    try {
+      if ((mondayDirectService as any).getMockupListForProject) {
+        return await (mondayDirectService as any).getMockupListForProject(projectId);
+      }
+    } catch (error) {
+      console.error('❌ Error loading mockup list from Monday.com:', error);
+    }
+    return [];
   }
 
   // Загрузить SVG содержимое по URL

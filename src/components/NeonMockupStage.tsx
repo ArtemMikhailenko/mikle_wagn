@@ -9,6 +9,7 @@ type NeonMockupStageProps = {
   neonIntensity?: number; // 0.40–2.00 (optional extern gesteuert)
   selectedBackground?: string; // Manuell gewählter Hintergrund
   customMockupUrl?: string; // Кастомный MockUp URL из Monday.com
+  customMockupUrls?: string[]; // Несколько изображений мокапов
   onBackgroundChange?: (background: string) => void; // Callback für Hintergrundwechsel
   onWaterproofChange?: (isWaterproof: boolean) => void; // Callback für Wasserdicht-Änderungen
   onSvgUpload?: (svgContent: string | null) => void; // Callback für SVG Upload
@@ -44,12 +45,6 @@ const GLOW_ALPHA_BASE = [0.54, 0.40, 0.26, 0.15];
 // % im Dateinamen müssen in der URL als %25 stehen
 const encPct = (s:string) => s.replace(/%/g, '%25');
 
-function pickSet(cm:number, outdoor:boolean){
-  if(outdoor) return "outdoor_30%";
-  if(cm < 100) return "ab_20cm_50%";
-  if(cm < 200) return "ab_100cm_50%";
-  return "ab_200cm_50%";
-}
 function parseColor(col?:string){
   if(!col || col==="none") return {r:255,g:255,b:255,a:1};
   col = String(col).trim();
@@ -90,7 +85,7 @@ function sanitize(svg:SVGSVGElement){
 const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   lengthCm, waterproof, neonOn, uvOn,
   bgBrightness, neonIntensity,
-  selectedBackground, customMockupUrl, onBackgroundChange, onWaterproofChange, onSvgUpload, currentSvgContent, svgImageUrl,
+  selectedBackground, customMockupUrl, customMockupUrls, onBackgroundChange, onWaterproofChange, onSvgUpload, currentSvgContent, svgImageUrl,
   hideSettingsButton = false
 }) => {
   const planeRef = useRef<HTMLDivElement>(null);
@@ -101,19 +96,20 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   useEffect(() => {
     console.log('🎨 NeonMockupStage Props:', {
       hasCustomMockupUrl: !!customMockupUrl,
+      mockupUrlsCount: customMockupUrls?.length || 0,
       hasSvgContent: !!currentSvgContent,
       hasSvgImageUrl: !!svgImageUrl,
       lengthCm,
       mockupUrl: customMockupUrl || 'none',
       svgUrl: svgImageUrl || 'none'
     });
-  }, [customMockupUrl, currentSvgContent, svgImageUrl, lengthCm]);
+  }, [customMockupUrl, customMockupUrls, currentSvgContent, svgImageUrl, lengthCm]);
 
   // State für manuell gewählten Hintergrund
   const [currentBackground, setCurrentBackground] = useState(selectedBackground || "ab_100cm_50%");
 
   // Fallback-States (falls Props nicht gesetzt sind)
-  const [localBg, setLocalBg]       = useState(bgBrightness ?? 1.0);
+  const [localBg, _setLocalBg]       = useState(bgBrightness ?? 1.0);
   const [localNeon, setLocalNeon]   = useState(neonIntensity ?? 1.50);
   const [localNeonOn, setLocalNeonOn] = useState(neonOn);
   
@@ -323,6 +319,7 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
             
           } catch (proxyError) {
             console.warn('⚠️ Both direct and proxy methods failed:', proxyError instanceof Error ? proxyError.message : 'Unknown error');
+            // Do not clear previously rendered SVG here; keep whatever is shown
           }
         }
       };
@@ -368,6 +365,14 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
 
   const [drag, setDrag] = useState({dx:0, dy:0});
   const [isDragging, setIsDragging] = useState(false);
+  // Carousel state for multiple mockups
+  const [mockupIndex, setMockupIndex] = useState(0);
+  const activeMockupUrl = useMemo(() => {
+    const list = customMockupUrls && customMockupUrls.length > 0 ? customMockupUrls : (customMockupUrl ? [customMockupUrl] : []);
+    if (list.length === 0) return customMockupUrl;
+    return list[Math.min(mockupIndex, list.length - 1)];
+  }, [customMockupUrls, customMockupUrl, mockupIndex]);
+  useEffect(() => { setMockupIndex(0); }, [customMockupUrls?.length, customMockupUrl]);
 
   // Neon-Intensität Slider Auto-Hide (2 Sekunden)
   const showNeonSliderFor2Seconds = () => {
@@ -881,7 +886,7 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
     <>
     <div style={S.scene} className={showTechnicalView ? 'bg-gray-200' : ''}>
       {/* Показываем фоновые элементы только если нет мокапа */}
-      {!customMockupUrl && (
+      {!activeMockupUrl && (
         <>
           {/* Base */}
           <div style={{
@@ -916,7 +921,7 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
       )}
 
       {/* SVG-Plane - показываем только если нет мокапа */}
-      {!customMockupUrl && (
+      {!activeMockupUrl && (
         <div style={S.planeWrap}>
           <div
             data-mockup-stage
@@ -936,34 +941,68 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
       )}
         
       {/* Monday.com MockUp/SVG Image */}
-      {(customMockupUrl || svgImageUrl) && !showTechnicalView && (
+      {(activeMockupUrl || svgImageUrl) && !showTechnicalView && (
         <div
           style={{
             position: 'absolute',
-            left: customMockupUrl ? '0' : '50%', // Мокап на весь контейнер, SVG по центру
-            top: customMockupUrl ? '0' : '50%',
-            width: customMockupUrl ? '100%' : `${Math.min(lengthCm * 2, 300)}px`, // Мокап на весь контейнер, SVG фиксированный размер
-            height: customMockupUrl ? '100%' : `${Math.min(lengthCm * 1, 200)}px`,
-            transform: customMockupUrl 
+            left: activeMockupUrl ? '0' : '50%', // Мокап на весь контейнер, SVG по центру
+            top: activeMockupUrl ? '0' : '50%',
+            width: activeMockupUrl ? '100%' : `${Math.min(lengthCm * 2, 300)}px`, // Мокап на весь контейнер, SVG фиксированный размер
+            height: activeMockupUrl ? '100%' : `${Math.min(lengthCm * 1, 200)}px`,
+            transform: activeMockupUrl 
               ? 'none' // Мокап неподвижен
               : `translate(-50%,-50%) translate(${drag.dx.toFixed(2)}px, ${drag.dy.toFixed(2)}px) scale(1)`, // SVG подвижен
-            backgroundImage: `url(${customMockupUrl || svgImageUrl})`,
-            backgroundSize: customMockupUrl ? 'cover' : 'contain', // Мокап заполняет, SVG сохраняет пропорции
+            backgroundImage: `url(${activeMockupUrl || svgImageUrl})`,
+            backgroundSize: activeMockupUrl ? 'cover' : 'contain', // Мокап заполняет, SVG сохраняет пропорции
             backgroundRepeat: 'no-repeat',
             backgroundPosition: 'center',
-            cursor: customMockupUrl ? 'default' : (isDragging ? 'grabbing' : 'grab'), // Мокап без курсора захвата
-            zIndex: customMockupUrl ? 0 : 1, // Мокап под всем, SVG над фоном
-            pointerEvents: customMockupUrl ? 'none' : 'auto', // Мокап нельзя захватывать
+            cursor: activeMockupUrl ? 'default' : (isDragging ? 'grabbing' : 'grab'), // Мокап без курсора захвата
+            zIndex: activeMockupUrl ? 0 : 1, // Мокап под всем, SVG над фоном
+            pointerEvents: activeMockupUrl ? 'none' : 'auto', // Мокап нельзя захватывать
             userSelect: 'none',
             touchAction: 'none',
           }}
-          onPointerDown={customMockupUrl ? undefined : onMockupPointerDown} // Мокап не реагирует на события
-          onPointerMove={customMockupUrl ? undefined : onMockupPointerMove}
-          onPointerUp={customMockupUrl ? undefined : onMockupPointerUp}
-          onPointerCancel={customMockupUrl ? undefined : onMockupPointerUp}
+          onPointerDown={activeMockupUrl ? undefined : onMockupPointerDown} // Мокап не реагирует на события
+          onPointerMove={activeMockupUrl ? undefined : onMockupPointerMove}
+          onPointerUp={activeMockupUrl ? undefined : onMockupPointerUp}
+          onPointerCancel={activeMockupUrl ? undefined : onMockupPointerUp}
           onDoubleClick={openZoomModal}
-          title={customMockupUrl ? "MockUp изображение" : "SVG изображение (перетащите для перемещения)"}
+          title={activeMockupUrl ? "MockUp изображение" : "SVG изображение (перетащите для перемещения)"}
         />
+      )}
+
+      {/* Mockup carousel controls */}
+      {customMockupUrls && customMockupUrls.length > 1 && !showTechnicalView && (
+        <div className="absolute inset-0 z-10 pointer-events-none">
+          <div className="absolute left-2 top-1/2 -translate-y-1/2">
+            <button
+              className="pointer-events-auto bg-black/40 hover:bg-black/60 text-white rounded-full p-2"
+              onClick={() => setMockupIndex(i => (i - 1 + customMockupUrls.length) % customMockupUrls.length)}
+              aria-label="Vorheriges Bild"
+            >
+              ‹
+            </button>
+          </div>
+          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+            <button
+              className="pointer-events-auto bg-black/40 hover:bg-black/60 text-white rounded-full p-2"
+              onClick={() => setMockupIndex(i => (i + 1) % customMockupUrls.length)}
+              aria-label="Nächstes Bild"
+            >
+              ›
+            </button>
+          </div>
+          <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-2">
+            {customMockupUrls.map((_, idx) => (
+              <button
+                key={idx}
+                className={`pointer-events-auto w-2.5 h-2.5 rounded-full ${idx === mockupIndex ? 'bg-white' : 'bg-white/40'}`}
+                onClick={() => setMockupIndex(idx)}
+                aria-label={`Bild ${idx + 1}`}
+              />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Technische Ansicht Button */}
@@ -1291,7 +1330,7 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
 
           {/* Modal Content */}
           <div className="pt-16 w-full h-full bg-black flex items-center justify-center overflow-hidden">
-            {(customMockupUrl || svgImageUrl) && !currentSvgContent ? (
+            {(activeMockupUrl || svgImageUrl) && !currentSvgContent ? (
               // Monday.com изображение в полном размере
               <div 
                 style={{
@@ -1300,7 +1339,7 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
                   cursor: modalZoom > 1 ? 'grab' : 'default',
                   width: `${lengthCm * 4}px`,
                   height: `${lengthCm * 2}px`,
-                  backgroundImage: `url(${customMockupUrl || svgImageUrl})`,
+                  backgroundImage: `url(${activeMockupUrl || svgImageUrl})`,
                   backgroundSize: 'contain',
                   backgroundRepeat: 'no-repeat',
                   backgroundPosition: 'center',

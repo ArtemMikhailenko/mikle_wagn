@@ -369,6 +369,7 @@ export default function ClientView() {
                   waterproof={config.isWaterproof}
                   neonOn={neonOn}
                   uvOn={config.hasUvPrint || false}
+                  customMockupUrl={config.selectedDesign.mockupUrl || undefined}
                   currentSvgContent={uploadedSvgsByDesign[config.selectedDesign.id]}
                   onSvgUpload={(svgContent) => {
                     if (svgContent) {

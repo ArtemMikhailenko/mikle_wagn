@@ -11,26 +11,47 @@ interface LottieLoaderProps {
 }
 
 // Centralized Lottie loader using the project animation AeqdDC7l8q.json
-const LottieLoader: React.FC<LottieLoaderProps> = ({ className = '', size = 80, loop = true, autoplay = true, label = 'Loading...', src = '/AeqdDC7l8q.json' }) => {
+const LottieLoader: React.FC<LottieLoaderProps> = ({
+  className = '',
+  size = 80,
+  loop = true,
+  autoplay = true,
+  label = 'Loading...',
+  // IMPORTANT: On Vercel, assets must be inside /public. Keep the default path there.
+  src = '/AeqdDC7l8q.json'
+}) => {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const animRef = React.useRef<any>(null);
   const [animationData, setAnimationData] = React.useState<any | null>(null);
+  const [hadError, setHadError] = React.useState(false);
 
   React.useEffect(() => {
+    // Skip on SSR/Edge prerender — run only in browser
+    if (typeof window === 'undefined') return;
     // fetch animation json from public
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch(src, { cache: 'force-cache' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (!cancelled) setAnimationData(json);
+        const tryPaths = [
+          src,
+          '/AeqdDC7l8q.json',
+          '/assets/AeqdDC7l8q.json'
+        ];
+        let loaded: any | null = null;
+        for (const p of tryPaths) {
+          try {
+            const res = await fetch(p, { cache: 'force-cache' });
+            if (!res.ok) continue;
+            const json = await res.json();
+            loaded = json;
+            break;
+          } catch {}
+        }
+        if (!loaded) throw new Error('Lottie JSON not found in public paths');
+        if (!cancelled) setAnimationData(loaded);
       } catch (e) {
-        // Use a tiny inline pulse as fallback
-        if (!cancelled) setAnimationData({
-          v: '5.7.4', fr: 30, ip: 0, op: 60, w: size, h: size, nm: 'fallback', ddd: 0, assets: [], layers: [
-            { ddd: 0, ind: 1, ty: 4, nm: 'pulse', sr: 1, ks: { o: { a: 0, k: 100 }, r: { a: 0, k: 0 }, p: { a: 0, k: [size/2, size/2, 0] }, a: { a: 0, k: [0,0,0] }, s: { a: 1, k: [ { t: 0, s: [80,80,100] }, { t: 30, s: [100,100,100] }, { t: 60, s: [80,80,100] } ] } }, shapes: [ { ty: 'el', p: { a: 0, k: [0,0] }, s: { a: 0, k: [size*0.5, size*0.5] }, nm: 'ellipse' }, { ty: 'fl', c: { a: 0, k: [0.1,0.5,1,1] }, o: { a: 0, k: 100 }, nm: 'fill' } ], ip: 0, op: 60, st: 0, bm: 0 }
-          ]});
+        console.warn('Lottie JSON load failed, using CSS spinner fallback:', e);
+        if (!cancelled) setHadError(true);
       } finally {
         // no-op
       }
@@ -40,22 +61,43 @@ const LottieLoader: React.FC<LottieLoaderProps> = ({ className = '', size = 80, 
   }, [src, size]);
 
   React.useEffect(() => {
-    if (!ref.current || !animationData) return;
-    animRef.current = lottie.loadAnimation({
-      container: ref.current,
-      renderer: 'svg',
-      loop,
-      autoplay,
-      animationData,
-    });
-    return () => {
-      animRef.current?.destroy?.();
-    };
+    if (!ref.current) return;
+    // If we have JSON, render through Lottie; otherwise leave to CSS fallback
+    if (animationData) {
+      animRef.current = lottie.loadAnimation({
+        container: ref.current,
+        renderer: 'svg',
+        loop,
+        autoplay,
+        animationData,
+      });
+      return () => {
+        animRef.current?.destroy?.();
+      };
+    }
   }, [animationData, loop, autoplay]);
 
   return (
     <div className={`flex flex-col items-center justify-center ${className}`}>
-      <div ref={ref} style={{ width: size, height: size }} />
+      {/* Lottie container or CSS fallback */}
+      <div
+        ref={ref}
+        style={{ width: size, height: size }}
+        className={!animationData || hadError ? 'relative' : undefined}
+      >
+        {(!animationData || hadError) && (
+          <div
+            aria-label={label || 'Loading'}
+            className="absolute inset-0 grid place-items-center"
+          >
+            {/* Tailwind CSS spinner fallback to avoid blue square */}
+            <div
+              className="h-3/5 w-3/5 animate-spin rounded-full border-4 border-blue-200 border-t-blue-500"
+              style={{ borderTopColor: '#1E90FF' }}
+            />
+          </div>
+        )}
+      </div>
       {label && <p className="mt-2 text-gray-600 text-sm">{label}</p>}
     </div>
   );

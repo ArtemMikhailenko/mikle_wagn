@@ -252,6 +252,7 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
           elements: projectData.elements || 1,
           ledLength: projectData.ledLength || 3.0,
           mockupUrl: projectData.mockup_url || '',
+          mockupUrls: projectData.mockup_urls || [],
           description: projectData.notes || '',
           svgContent: projectData.svg_content,
           svgUrl: projectData.svg_url,
@@ -273,6 +274,7 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
           elements: projectData.elements || projectDesign.elements,
           ledLength: projectData.ledLength || projectDesign.ledLength,
           mockupUrl: projectData.mockup_url || projectDesign.mockupUrl,
+          mockupUrls: projectData.mockup_urls || projectDesign.mockupUrls,
           svgContent: projectData.svg_content || projectDesign.svgContent,
           svgUrl: projectData.svg_url || projectDesign.svgUrl,
           hasCustomSvg: !!projectData.svg_content || projectDesign.hasCustomSvg,
@@ -800,7 +802,7 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
                 waterproof={config.isWaterproof}
                 uvOn={!!config.hasUvPrint}
                 neonOn={neonOn && !isResizing}
-                currentSvgContent={uploadedSvgsByDesign[config.selectedDesign.id] || null}
+                currentSvgContent={uploadedSvgsByDesign[config.selectedDesign.id] || config.selectedDesign.svgContent || null}
                 customMockupUrl={config.selectedDesign.mockupUrl || undefined}
                 svgImageUrl={config.selectedDesign.svgUrl || undefined}
                 onSvgUpload={(svgContent) => {
@@ -1321,6 +1323,8 @@ function NeonConfiguratorWithProject() {
             console.log('✅ Loaded mockup URL:', mockupUrl);
           }
         }
+
+        // (Убрано) загрузка списка баннеров, используем один мокап как раньше
 
         // Загружаем SVG содержимое если есть URL но нет содержимого
         if (project.svg_url && !project.svg_content) {

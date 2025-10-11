@@ -79,24 +79,41 @@ export default function DirectCRMAdminPanel() {
   };
 
   const handleSyncWithMonday = async () => {
+    if (syncing) return; // guard against double clicks
     setSyncing(true);
     setSyncMessage('🔄 Обновление данных с Monday.com...');
-    
+
+    // Safety fallback: ensure UI doesn't get stuck
+    const safety = setTimeout(() => {
+      setSyncing(false);
+      // Hard-clear message too if still the initial text
+      setSyncMessage((prev) => prev && prev.includes('Обновление данных') ? '' : prev);
+    }, 60000);
+
     try {
       const result = await directCrmService.syncWithMonday();
-      setSyncMessage(result.message);
+      // Stop spinner as soon as core work is done
+      setSyncing(false);
+      setSyncMessage(result.success ? `✅ Синхронизация завершена! ${result.processed ?? ''}`.trim() : result.message);
       
       if (result.success) {
-        // Перезагружаем данные после успешной синхронизации
+        // Kick off projects reload but don't block UI
+        loadProjects().catch(() => {/* no-op */});
+        // Clear the banner shortly after
         setTimeout(() => {
-          loadProjects();
           setSyncMessage('');
         }, 2000);
       }
     } catch (error) {
       setSyncMessage(`❌ Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     } finally {
+      clearTimeout(safety);
+      // Ensure UI never remains stuck in syncing state
       setSyncing(false);
+      // Auto-clear any leftover message after a max visible time
+      setTimeout(() => {
+        setSyncMessage((prev) => prev && (prev.includes('Обновление данных') || prev.startsWith('✅') || prev.startsWith('❌')) ? '' : prev);
+      }, 8000);
     }
   };
 
