@@ -1,5 +1,9 @@
 import React from 'react';
 import lottie from 'lottie-web';
+// Static fallback JSON bundled into app (works on Vercel even if rewrites interfere)
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - importing JSON as any
+import builtinAnim from '../assets/lottie/AeqdDC7l8q.json';
 
 interface LottieLoaderProps {
   className?: string;
@@ -22,8 +26,9 @@ const LottieLoader: React.FC<LottieLoaderProps> = ({
 }) => {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const animRef = React.useRef<any>(null);
-  const [animationData, setAnimationData] = React.useState<any | null>(null);
-  const [hadError, setHadError] = React.useState(false);
+  // Initialize with built-in JSON so animation shows instantly even if fetch fails on Vercel
+  const [animationData, setAnimationData] = React.useState<any | null>(builtinAnim as any);
+  // no error flag needed: builtin animation prevents fallback spinner
 
   React.useEffect(() => {
     // Skip on SSR/Edge prerender — run only in browser
@@ -32,6 +37,14 @@ const LottieLoader: React.FC<LottieLoaderProps> = ({
     let cancelled = false;
     const load = async () => {
       try {
+        // Race: try network first with short timeout, then fallback to builtin JSON
+        const timeoutMs = 1500;
+        const withTimeout = (p: Promise<Response>) => {
+          return Promise.race([
+            p,
+            new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs)) as any
+          ]);
+        };
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
         const tryPaths = [
           src,
@@ -42,7 +55,7 @@ const LottieLoader: React.FC<LottieLoaderProps> = ({
         let loaded: any | null = null;
         for (const p of tryPaths) {
           try {
-            const res = await fetch(p, { cache: 'force-cache' });
+            const res = await withTimeout(fetch(p, { cache: 'force-cache' }));
             if (!res.ok) continue;
             // Guard: ensure content-type is JSON, not HTML from SPA rewrite
             const ct = res.headers.get('content-type') || '';
@@ -58,11 +71,12 @@ const LottieLoader: React.FC<LottieLoaderProps> = ({
             break;
           } catch {}
         }
-        if (!loaded) throw new Error('Lottie JSON not found in public paths');
+        // If nothing loaded from network, we already have builtin displayed
+        if (!loaded) loaded = builtinAnim as any;
         if (!cancelled) setAnimationData(loaded);
       } catch (e) {
-        console.warn('Lottie JSON load failed, using CSS spinner fallback:', e);
-        if (!cancelled) setHadError(true);
+        // Network failed — we already show builtin animation, ignore
+        console.warn('Lottie JSON network load failed; using builtin animation');
       } finally {
         // no-op
       }
@@ -94,9 +108,9 @@ const LottieLoader: React.FC<LottieLoaderProps> = ({
       <div
         ref={ref}
         style={{ width: size, height: size }}
-        className={!animationData || hadError ? 'relative' : undefined}
+        className={!animationData ? 'relative' : undefined}
       >
-        {(!animationData || hadError) && (
+        {(!animationData) && (
           <div
             aria-label={label || 'Loading'}
             className="absolute inset-0 grid place-items-center"

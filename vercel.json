@@ -1,6 +1,9 @@
 {
   "rewrites": [
     { "source": "/client/(.*)", "destination": "/" },
-    { "source": "/((?!api/|.*\\..*).*)", "destination": "/" }
+    { "source": "/AeqdDC7l8q.json", "destination": "/AeqdDC7l8q.json" },
+    { "source": "/assets/(.*)", "destination": "/assets/$1" },
+    { "source": "/(.*\\..*)", "destination": "/$1" },
+    { "source": "/((?!api/).*)", "destination": "/" }
   ]
 }
