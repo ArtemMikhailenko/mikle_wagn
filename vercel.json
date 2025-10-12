@@ -5,5 +5,14 @@
     { "source": "/assets/(.*)", "destination": "/assets/$1" },
     { "source": "/(.*\\..*)", "destination": "/$1" },
     { "source": "/((?!api/).*)", "destination": "/" }
+  ],
+  "headers": [
+    {
+      "source": "/AeqdDC7l8q.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+      ]
+    }
   ]
 }

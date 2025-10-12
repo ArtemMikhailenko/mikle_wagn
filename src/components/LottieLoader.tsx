@@ -5,6 +5,22 @@ import lottie from 'lottie-web';
 // @ts-ignore - importing JSON as any
 import builtinAnim from '../assets/lottie/AeqdDC7l8q.json';
 
+// Ultra-safe inline fallback (very small), used if JSON import is undefined in prod
+const INLINE_FALLBACK_ANIM: any = {
+  v: '5.5.7', fr: 30, ip: 0, op: 60, w: 256, h: 256, nm: 'inline-fallback', ddd: 0, assets: [],
+  layers: [
+    { ddd: 0, ind: 1, ty: 4, nm: 'ring', sr: 1,
+      ks: { o: { a: 0, k: 100 }, r: { a: 0, k: 0 }, p: { a: 0, k: [128,128,0] }, a: { a: 0, k: [0,0,0] }, s: { a: 0, k: [100,100,100] } },
+      shapes: [
+        { ty: 'gr', it: [
+          { ty: 'el', p: { a: 0, k: [0,0] }, s: { a: 0, k: [180,180] } },
+          { ty: 'st', c: { a: 0, k: [0.12,0.56,1,1] }, o: { a: 0, k: 100 }, w: { a: 0, k: 16 } },
+          { ty: 'tm', s: { a: 1, k: [{ t:0, s:[0] }, { t:60, s:[100] }] }, e: { a: 1, k: [{ t:0, s:[25] }, { t:60, s:[125] }] }, o: { a: 0, k: 0 } }
+        ]}
+      ], ip: 0, op: 60, st: 0, bm: 0 }
+  ]
+};
+
 interface LottieLoaderProps {
   className?: string;
   size?: number; // px
@@ -27,7 +43,7 @@ const LottieLoader: React.FC<LottieLoaderProps> = ({
   const ref = React.useRef<HTMLDivElement | null>(null);
   const animRef = React.useRef<any>(null);
   // Initialize with built-in JSON so animation shows instantly even if fetch fails on Vercel
-  const [animationData, setAnimationData] = React.useState<any | null>(builtinAnim as any);
+  const [animationData, setAnimationData] = React.useState<any | null>((builtinAnim as any) || INLINE_FALLBACK_ANIM);
   // no error flag needed: builtin animation prevents fallback spinner
 
   React.useEffect(() => {
