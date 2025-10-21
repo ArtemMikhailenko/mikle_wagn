@@ -3,15 +3,11 @@ import { discountService } from './services/discountService';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import CustomerHeader from './components/CustomerHeader';
 import MondayStatus from './components/MondayStatus';
-import ConfigurationPanel from './components/ConfigurationPanel';
-import DesignSelector from './components/DesignSelector';
-import PricingCalculator from './components/PricingCalculator';
-import DiscountTimer, { InlineDiscountPrice, CompactDiscountTimer } from './components/DiscountTimer';
+import { InlineDiscountPrice, CompactDiscountTimer } from './components/DiscountTimer';
 import CartCheckout from './components/CartCheckout';
 import LoginPage from './components/auth/LoginPage';
 import SignupPage from './components/auth/SignupPage';
 import ProductsPage from './components/ProductsPage';
-import SuccessPage from './components/SuccessPage';
 import PaymentSuccess from './components/PaymentSuccess';
 import StripeTestPage from './components/StripeTestPage';
 import WiderrufsrechtPage from './components/legal/WiderrufsrechtPage';
@@ -21,11 +17,10 @@ import ZahlungVersandPage from './components/legal/ZahlungVersandPage';
 import ImpressumPage from './components/legal/ImpressumPage';
 import { ConfigurationState, SignConfiguration } from './types/configurator';
 import { MOCK_DESIGNS } from './data/mockDesigns';
-import { calculateProportionalHeight, calculateSingleSignPriceWithFakeDiscount, calculateProportionalLedLength } from './utils/calculations';
-import { calculatePriceWithFakeDiscountSync, getCurrentDiscountInfo } from './utils/realCalculations';
+import { calculateProportionalHeight, calculateProportionalLedLength } from './utils/calculations';
+import { calculatePriceWithFakeDiscountSync } from './utils/realCalculations';
 import NeonMockupStage from './components/NeonMockupStage';
-import { ShoppingCart, X, ArrowLeft, ChevronLeft, ChevronRight, Settings, FileText, Ruler, Shield, Truck, Wrench, MapPin, Info, Scissors, Palette } from 'lucide-react';
-import { Edit3 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Ruler, Shield, Truck, Info, Scissors, Palette } from 'lucide-react';
 import ShippingCalculationPage from './components/ShippingCalculationPage';
 import MondayTestPanel from './components/MondayTestPanel';
 import MondayConnectionTest from './components/MondayConnectionTest';
@@ -41,8 +36,8 @@ import AdminDashboard from './components/AdminDashboard';
 import LottieLoader from './components/LottieLoader';
 import OrdersAdminPanel from './components/OrdersAdminPanel';
 import mondayService from './services/mondayService';
-import makeService from './services/makeService';
 import directCrmService from './services/directCrmService';
+import mondayDirectService from './services/mondayDirectService';
 import ClientViewFullConfigurator from './components/ClientViewFullConfigurator';
 import DebugProject from './components/DebugProject';
 
@@ -157,13 +152,14 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
   });
   
   const [availableDesigns, setAvailableDesigns] = useState(MOCK_DESIGNS);
-  const [isLoadingDesigns, setIsLoadingDesigns] = useState(true);
   
   // State für temporäre "Im Warenkorb" Animation
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  // Карусель мокапов (вывесок) для клиентского проекта
+  const [mockupIndex, setMockupIndex] = useState(0);
   
   // Mobile cart state
-  const [showMobileCart, setShowMobileCart] = useState(false);
+  // const [showMobileCart, setShowMobileCart] = useState(false);
   const [currentStep, setCurrentStep] = useState<'design' | 'cart'>('design');
   const [showShippingPage, setShowShippingPage] = useState(false);
   
@@ -214,12 +210,17 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
         console.error('❌ Fehler beim Laden der Designs:', error);
         setAvailableDesigns(MOCK_DESIGNS);
       } finally {
-        setIsLoadingDesigns(false);
+        // no-op
       }
     };
 
     loadDesigns();
   }, []);
+
+  // Сбрасываем индекс мокапа при смене дизайна/списка мокапов
+  useEffect(() => {
+    setMockupIndex(0);
+  }, [config.selectedDesign?.id, config.selectedDesign?.mockupUrls?.length]);
 
   // Initialize project data when provided
   useEffect(() => {
@@ -253,14 +254,14 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
           ledLength: projectData.ledLength || 3.0,
           mockupUrl: projectData.mockup_url || '',
           mockupUrls: projectData.mockup_urls || [],
-          description: projectData.notes || '',
-          svgContent: projectData.svg_content,
-          svgUrl: projectData.svg_url,
-          hasCustomSvg: !!projectData.svg_content,
-          createdAt: projectData.created_at,
-          // Настройки из Monday.com
-          hasUvPrint: projectData.hasUvPrint,
-          isWaterproof: projectData.isWaterproof,
+      description: projectData.notes || '',
+      svgContent: projectData.svg_content,
+      svgUrl: projectData.svg_url,
+      hasCustomSvg: !!projectData.svg_content,
+      createdAt: projectData.created_at,
+      // Настройки из Monday.com
+      hasUvPrint: projectData.hasUvPrint,
+      isWaterproof: projectData.isWaterproof,
         };
         
         // Add to available designs
@@ -270,8 +271,6 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
         projectDesign = {
           ...projectDesign,
           originalWidth: projectData.originalWidth || projectDesign.originalWidth,
-          originalHeight: projectData.originalHeight || projectDesign.originalHeight,
-          elements: projectData.elements || projectDesign.elements,
           ledLength: projectData.ledLength || projectDesign.ledLength,
           mockupUrl: projectData.mockup_url || projectDesign.mockupUrl,
           mockupUrls: projectData.mockup_urls || projectDesign.mockupUrls,
@@ -298,31 +297,12 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
         });
       }
       
-      // Используем реальную ширину из Monday.com для конфигурации
-      const projectWidth = projectData.originalWidth || 200;
-      const calculatedHeight = calculateProportionalHeight(
-        projectDesign.originalWidth,
-        projectDesign.originalHeight,
-        projectWidth
-      );
-      
-      // Set as selected design
-      setConfig(prev => ({
-        ...prev,
-        selectedDesign: projectDesign,
-        customWidth: projectWidth, // Используем реальную ширину
-        calculatedHeight: calculatedHeight,
-        // Используем настройки из Monday.com
-        hasUvPrint: projectData.hasUvPrint !== undefined ? projectData.hasUvPrint : prev.hasUvPrint,
-        isWaterproof: projectData.isWaterproof !== undefined ? projectData.isWaterproof : prev.isWaterproof,
-      }));
-      
       console.log('🔧 Setting config with design:', {
         designId: projectDesign.id,
         designName: projectDesign.name,
         svgUrl: projectDesign.svgUrl || 'none',
-        customWidth: projectWidth,
-        calculatedHeight,
+        customWidth: config.customWidth,
+        calculatedHeight: config.calculatedHeight,
         hasUvPrint: projectData.hasUvPrint,
         isWaterproof: projectData.isWaterproof,
         settingsSource: 'Monday.com',
@@ -334,6 +314,15 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
         prevConfigHasUvPrint: config.hasUvPrint,
         prevConfigIsWaterproof: config.isWaterproof
       });
+
+      // ВАЖНО: выбираем дизайн проекта как текущий, чтобы сцена и точки работали по данным проекта
+      setConfig(prev => ({
+        ...prev,
+        selectedDesign: projectDesign!,
+        // Применяем реальные настройки из Monday.com, если они есть
+        hasUvPrint: projectData.hasUvPrint !== undefined ? projectData.hasUvPrint : prev.hasUvPrint,
+        isWaterproof: projectData.isWaterproof !== undefined ? projectData.isWaterproof : prev.isWaterproof,
+      }));
       
       // Add SVG content if available
       if (projectData.svg_content) {
@@ -358,8 +347,8 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
       console.log('✅ Project initialization completed');
       console.log('🔧 Final config:', {
         selectedDesign: projectDesign.name,
-        customWidth: projectWidth,
-        calculatedHeight,
+        customWidth: config.customWidth,
+        calculatedHeight: config.calculatedHeight,
         hasUvPrint: projectData.hasUvPrint,
         isWaterproof: projectData.isWaterproof,
         settingsFromMondaycom: `UV: ${projectData.hasUvPrint}, Waterproof: ${projectData.isWaterproof}`,
@@ -570,7 +559,7 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
     console.log('🔄 Design changed to:', design.name, 'with settings:', designSettings);
   };
 
-  const handleToggleDesign = (design: typeof MOCK_DESIGNS[0], added: boolean) => {
+  const handleToggleDesign = (design: typeof MOCK_DESIGNS[0]) => {
     // Starte Animation
     setIsAddingToCart(true);
     
@@ -619,16 +608,11 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
     setConfig(prev => ({ ...prev, selectedShipping: shipping }));
   };
 
-  const handleDesignUpdate = (updatedDesign: typeof MOCK_DESIGNS[0]) => {
-    setConfig(prev => ({
-      ...prev,
-      selectedDesign: updatedDesign
-    }));
-  };
+  // removed unused handleDesignUpdate
 
   // Check if current design is already added
   const currentDesignCount = config.signs.filter(sign => sign.design.id === config.selectedDesign.id).length;
-  const isCurrentDesignAdded = currentDesignCount > 0;
+  // const isCurrentDesignAdded = currentDesignCount > 0;
   // Customer data (would come from URL params or API in real implementation)
   const customerData = {
     name: projectData ? (projectData.client_name || projectData.design_name) : "Müller GmbH & Co. KG",
@@ -804,6 +788,9 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
                 neonOn={neonOn && !isResizing}
                 currentSvgContent={uploadedSvgsByDesign[config.selectedDesign.id] || config.selectedDesign.svgContent || null}
                 customMockupUrl={config.selectedDesign.mockupUrl || undefined}
+                customMockupUrls={config.selectedDesign.mockupUrls || undefined}
+                mockupIndex={mockupIndex}
+                onMockupIndexChange={setMockupIndex}
                 svgImageUrl={config.selectedDesign.svgUrl || undefined}
                 onSvgUpload={(svgContent) => {
                   if (svgContent) {
@@ -821,8 +808,31 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
                 }}
               />
               
-              {/* Navigation arrows - показывать только если дизайнов больше одного */}
-              {availableDesigns.length > 1 && (
+              {/* Navigation arrows - если есть несколько мокапов, управляем ими; иначе листаем дизайны */}
+              {(config.selectedDesign.mockupUrls && config.selectedDesign.mockupUrls.length > 1) ? (
+                <>
+                  <button
+                    onClick={() => {
+                      const list = config.selectedDesign.mockupUrls || [];
+                      if (!list.length) return;
+                      setMockupIndex((prev) => (prev - 1 + list.length) % list.length);
+                    }}
+                    className="absolute left-2 sm:left-6 top-1/2 transform -translate-y-1/2 transition-all duration-300 z-20"
+                  >
+                    <ChevronLeft className="h-8 w-4 sm:h-12 sm:w-6 text-white drop-shadow-lg" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const list = config.selectedDesign.mockupUrls || [];
+                      if (!list.length) return;
+                      setMockupIndex((prev) => (prev + 1) % list.length);
+                    }}
+                    className="absolute right-2 sm:right-6 top-1/2 transform -translate-y-1/2 transition-all duration-300 z-20"
+                  >
+                    <ChevronRight className="h-8 w-4 sm:h-12 sm:w-6 text-white drop-shadow-lg" />
+                  </button>
+                </>
+              ) : (availableDesigns.length > 1 && (
                 <>
                   <button
                     onClick={() => {
@@ -846,14 +856,28 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
                     <ChevronRight className="h-8 w-4 sm:h-12 sm:w-6 text-white drop-shadow-lg" />
                   </button>
                 </>
-              )}
+              ))}
               
-              {/* Design Indicators - показывать только если дизайнов больше одного */}
-              {availableDesigns.length > 1 && (
-                <div className="absolute bottom-4 sm:bottom-6 left-1/2 transform -translate-x-1/2 flex space-x-2 sm:space-x-3">
+              {/* Indicators: если есть >=1 мокап у текущего проекта — показываем точки по ним; иначе — по дизайнам */}
+              {(config.selectedDesign.mockupUrls && config.selectedDesign.mockupUrls.length >= 1) ? (
+                <div className="absolute bottom-4 sm:bottom-6 left-1/2 transform -translate-x-1/2 flex space-x-2 sm:space-x-3 z-20">
+                  {(config.selectedDesign.mockupUrls || []).map((_, index) => (
+                    <button
+                      key={`mock-${index}`}
+                      onClick={() => setMockupIndex(index)}
+                      className={`w-3 h-3 sm:w-4 sm:h-4 rounded-full transition-all duration-300 border-2 border-white/50 ${
+                        index === mockupIndex
+                          ? 'bg-white shadow-lg shadow-white/50 scale-125'
+                          : 'bg-white/30 hover:bg-white/60 backdrop-blur-sm'
+                      }`}
+                    />
+                  ))}
+                </div>
+              ) : (availableDesigns.length > 1 && (
+                <div className="absolute bottom-4 sm:bottom-6 left-1/2 transform -translate-x-1/2 flex space-x-2 sm:space-x-3 z-20">
                   {availableDesigns.map((_, index) => (
                     <button
-                      key={index}
+                      key={`design-${index}`}
                       onClick={() => handleDesignChange(availableDesigns[index])}
                       className={`w-3 h-3 sm:w-4 sm:h-4 rounded-full transition-all duration-300 border-2 border-white/50 ${
                         index === availableDesigns.findIndex(d => d.id === config.selectedDesign.id)
@@ -863,7 +887,7 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
                     />
                   ))}
                 </div>
-              )}
+              ))}
             </div>
             
             {/* 2. Technical Information - Responsive */}
@@ -877,36 +901,35 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                     <span className="text-xs font-bold text-green-800">Technische Daten</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                    <div>
-                      <span className="text-green-700">Elemente:</span>
-                      <span className="font-bold text-green-600 ml-1">{config.selectedDesign.elements}</span>
-                    </div>
-                    <div>
-                      <span className="text-green-700">LED-Länge:</span>
-                      <span className="font-bold text-green-600 ml-1">
-                        {calculateProportionalLedLength(
-                          config.selectedDesign.originalWidth,
-                          config.selectedDesign.originalHeight,
-                          config.selectedDesign.ledLength,
-                          config.customWidth,
-                          config.calculatedHeight
-                        )}m
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-green-700">Verbrauch:</span>
-                      <span className="font-bold text-green-600 ml-1">
-                        {Math.round(calculateProportionalLedLength(
-                          config.selectedDesign.originalWidth,
-                          config.selectedDesign.originalHeight,
-                          config.selectedDesign.ledLength,
-                          config.customWidth,
-                          config.calculatedHeight
-                        ) * 8 * 1.25)}W
-                      </span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const meta = config.selectedDesign.mockupMeta?.[mockupIndex];
+                    const ow = meta?.originalWidth ?? config.selectedDesign.originalWidth;
+                    const oh = meta?.originalHeight ?? config.selectedDesign.originalHeight;
+                    const elems = meta?.elements ?? config.selectedDesign.elements;
+                    const baseLed = meta?.ledLength ?? config.selectedDesign.ledLength;
+                    const ledLen = calculateProportionalLedLength(
+                      ow, oh, baseLed, config.customWidth, config.calculatedHeight
+                    );
+                    const powerPerMeter = meta?.powerPerMeter ?? 8 * 1.25; // keep prior behavior (≈10W/m)
+                    const watt = Math.round(ledLen * powerPerMeter);
+                    return (
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                        <div>
+                          <span className="text-green-700">Elemente:</span>
+                          <span className="font-bold text-green-600 ml-1">{elems}</span>
+                        </div>
+                        <div>
+                          <span className="text-green-700">LED-Länge:</span>
+                          <span className="font-bold text-green-600 ml-1">{ledLen}m</span>
+                        </div>
+                        <div>
+                          <span className="text-green-700">Verbrauch:</span>
+                          <span className="font-bold text-green-600 ml-1">{watt}W</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  
                 </div>
                 
                 {/* Original Data Section - Right */}
@@ -915,20 +938,28 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                     <span className="text-xs font-bold text-blue-800">Originale Daten</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                    <div>
-                      <span className="text-blue-700">Breite:</span>
-                      <span className="font-bold text-blue-600 ml-1">{config.selectedDesign.originalWidth}cm</span>
-                    </div>
-                    <div>
-                      <span className="text-blue-700">Höhe:</span>
-                      <span className="font-bold text-blue-600 ml-1">{config.selectedDesign.originalHeight}cm</span>
-                    </div>
-                    <div>
-                      <span className="text-blue-700">LED-Länge:</span>
-                      <span className="font-bold text-blue-600 ml-1">{config.selectedDesign.ledLength}m</span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const meta = config.selectedDesign.mockupMeta?.[mockupIndex];
+                    const ow = meta?.originalWidth ?? config.selectedDesign.originalWidth;
+                    const oh = meta?.originalHeight ?? config.selectedDesign.originalHeight;
+                    const baseLed = meta?.ledLength ?? config.selectedDesign.ledLength;
+                    return (
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                        <div>
+                          <span className="text-blue-700">Breite:</span>
+                          <span className="font-bold text-blue-600 ml-1">{ow}cm</span>
+                        </div>
+                        <div>
+                          <span className="text-blue-700">Höhe:</span>
+                          <span className="font-bold text-blue-600 ml-1">{oh}cm</span>
+                        </div>
+                        <div>
+                          <span className="text-blue-700">LED-Länge:</span>
+                          <span className="font-bold text-blue-600 ml-1">{baseLed}m</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -987,7 +1018,7 @@ function NeonConfiguratorApp({ projectData }: { projectData?: any } = {}) {
                     </div>
                   ) : (
                     <button
-                      onClick={() => handleToggleDesign(config.selectedDesign, true)}
+                      onClick={() => handleToggleDesign(config.selectedDesign)}
                       className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 active:from-green-700 active:to-emerald-800 text-white font-bold py-2.5 sm:py-3 lg:py-4 px-3 sm:px-4 lg:px-6 rounded-lg sm:rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg sm:shadow-xl hover:shadow-xl sm:hover:shadow-2xl flex items-center justify-center space-x-1.5 sm:space-x-2 lg:space-x-3 text-xs sm:text-sm lg:text-lg group relative overflow-hidden z-20 min-h-[44px] touch-manipulation"
                     >
                       {/* Glowing background animation */}
@@ -1324,7 +1355,20 @@ function NeonConfiguratorWithProject() {
           }
         }
 
-        // (Убрано) загрузка списка баннеров, используем один мокап как раньше
+        // Дополнительно загрузим список мокапов для карусели (точки переключения)
+        if (!project.mockup_urls || project.mockup_urls.length === 0) {
+          try {
+            const list = await directCrmService.loadMockupsForProject(project.mondayId || project.id);
+            if (list && list.length) {
+              project.mockup_urls = list;
+              // Если отсутствует основной, возьмем первый из списка
+              if (!project.mockup_url) project.mockup_url = list[0];
+              console.log('✅ Loaded mockup LIST:', list.length);
+            }
+          } catch (e) {
+            console.warn('⚠️ Could not load mockup list:', e);
+          }
+        }
 
         // Загружаем SVG содержимое если есть URL но нет содержимого
         if (project.svg_url && !project.svg_content) {
@@ -1333,6 +1377,20 @@ function NeonConfiguratorWithProject() {
           if (svgContent) {
             project.svg_content = svgContent;
             console.log('✅ Loaded SVG content, length:', svgContent.length);
+          }
+        }
+        // Если SVG вовсе отсутствует, попробуем найти его в субтаблице Monday и загрузить
+        if (!project.svg_url && !project.svg_content) {
+          try {
+            const svgUrl = await mondayDirectService.getSvgForProject(project.mondayId || project.id);
+            if (svgUrl) {
+              project.svg_url = svgUrl;
+              const svgContent = await directCrmService.loadSvgContent(svgUrl);
+              if (svgContent) project.svg_content = svgContent;
+              console.log('✅ Fallback SVG fetched from Monday subtable');
+            }
+          } catch (e) {
+            console.warn('⚠️ Could not fetch fallback SVG from Monday subtable:', e);
           }
         }
         

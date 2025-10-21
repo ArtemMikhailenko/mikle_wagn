@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "run-proxy-server",
+			"type": "shell",
+			"command": "node proxy-server.js",
+			"args": [],
+			"isBackground": true,
+			"group": "build"
+		}
+	]
+}

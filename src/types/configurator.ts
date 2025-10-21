@@ -7,6 +7,14 @@ export interface NeonDesign {
   ledLength: number; // in meters
   mockupUrl: string; // fallback image
   mockupUrls?: string[]; // optional multiple mockup images
+  /** Optional per-mockup technical metadata to override originals per banner */
+  mockupMeta?: Array<{
+    originalWidth?: number; // cm
+    originalHeight?: number; // cm
+    elements?: number;
+    ledLength?: number; // m
+    powerPerMeter?: number; // W/m override for consumption calc
+  }>;
   description: string;
   // SVG support
   svgContent?: string; // actual SVG content from CRM

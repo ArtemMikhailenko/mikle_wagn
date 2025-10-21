@@ -35,6 +35,12 @@ export default defineConfig({
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, API-Version');
           });
         }
+      },
+      '/api/proxy-svg': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/proxy-svg/, '/proxy-svg'),
+        secure: false,
       }
     }
   },

@@ -10,12 +10,16 @@ type NeonMockupStageProps = {
   selectedBackground?: string; // Manuell gewählter Hintergrund
   customMockupUrl?: string; // Кастомный MockUp URL из Monday.com
   customMockupUrls?: string[]; // Несколько изображений мокапов
+  mockupIndex?: number; // Контролируемый индекс мокапа
+  onMockupIndexChange?: (index: number) => void; // Callback при смене индекса
   onBackgroundChange?: (background: string) => void; // Callback für Hintergrundwechsel
   onWaterproofChange?: (isWaterproof: boolean) => void; // Callback für Wasserdicht-Änderungen
   onSvgUpload?: (svgContent: string | null) => void; // Callback für SVG Upload
   currentSvgContent?: string | null; // Aktueller SVG Content für diesen Design
   svgImageUrl?: string; // SVG URL как изображение (fallback для mockup)
   hideSettingsButton?: boolean; // Скрыть кнопку настроек (шестеренку)
+  /** Если true — показывать SVG только на первом слайде мокапов */
+  lockSvgToFirstMockupSlide?: boolean;
 };
 
 // Reale Wandbreiten für jede Szene in cm
@@ -85,8 +89,9 @@ function sanitize(svg:SVGSVGElement){
 const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   lengthCm, waterproof, neonOn, uvOn,
   bgBrightness, neonIntensity,
-  selectedBackground, customMockupUrl, customMockupUrls, onBackgroundChange, onWaterproofChange, onSvgUpload, currentSvgContent, svgImageUrl,
-  hideSettingsButton = false
+  selectedBackground, customMockupUrl, customMockupUrls, mockupIndex, onMockupIndexChange, onBackgroundChange, onWaterproofChange, onSvgUpload, currentSvgContent, svgImageUrl,
+  hideSettingsButton = false,
+  lockSvgToFirstMockupSlide = true
 }) => {
   const planeRef = useRef<HTMLDivElement>(null);
   const svgRef   = useRef<SVGSVGElement|null>(null);
@@ -366,13 +371,23 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   const [drag, setDrag] = useState({dx:0, dy:0});
   const [isDragging, setIsDragging] = useState(false);
   // Carousel state for multiple mockups
-  const [mockupIndex, setMockupIndex] = useState(0);
+  // Controlled/uncontrolled mockup index
+  const [uncontrolledIndex, setUncontrolledIndex] = useState(0);
+  const effectiveMockupIndex = (typeof mockupIndex === 'number') ? mockupIndex : uncontrolledIndex;
+  const setMockupIndex = (idx: number) => {
+    if (typeof onMockupIndexChange === 'function') onMockupIndexChange(idx);
+    else setUncontrolledIndex(idx);
+  };
   const activeMockupUrl = useMemo(() => {
     const list = customMockupUrls && customMockupUrls.length > 0 ? customMockupUrls : (customMockupUrl ? [customMockupUrl] : []);
     if (list.length === 0) return customMockupUrl;
-    return list[Math.min(mockupIndex, list.length - 1)];
-  }, [customMockupUrls, customMockupUrl, mockupIndex]);
+    const idx = Math.min(effectiveMockupIndex, list.length - 1);
+    const url = list[idx];
+    console.log('🖼️ Active mockup resolved:', { idx, total: list.length, url });
+    return url;
+  }, [customMockupUrls, customMockupUrl, effectiveMockupIndex]);
   useEffect(() => { setMockupIndex(0); }, [customMockupUrls?.length, customMockupUrl]);
+  // Ранее скрывали мокап при наличии SVG; теперь всегда рендерим мокап под SVG
 
   // Neon-Intensität Slider Auto-Hide (2 Sekunden)
   const showNeonSliderFor2Seconds = () => {
@@ -450,8 +465,9 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   const S: Record<string, React.CSSProperties> = {
     scene:{position:"relative", inset:0, width:"100%", height:"100%", background:"#000", overflow:"hidden", borderRadius:12},
     layer:{position:"absolute", inset:0, backgroundPosition:"center", backgroundSize:"cover", backgroundRepeat:"no-repeat", pointerEvents:"none"},
-    rain:{position:"absolute", inset:0, pointerEvents:"none", opacity:0.15, zIndex:4, overflow:"hidden"},
-    planeWrap:{position:"absolute", inset:0, zIndex:2, pointerEvents:"none"},
+  rain:{position:"absolute", inset:0, pointerEvents:"none", opacity:0.15, zIndex:100, overflow:"hidden"},
+  // SVG plane above mockup and decor
+  planeWrap:{position:"absolute", inset:0, zIndex:60, pointerEvents:"none"},
     plane:{
       position:"absolute", left:"50%", top:"50%",
       transform:`translate(-50%,-130%) translate(${drag.dx.toFixed(2)}px, ${drag.dy.toFixed(2)}px) scale(1)`,
@@ -463,8 +479,30 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
     gearPanel:{padding:"10px 12px", display:"grid", gap:8, minWidth:220}
   };
 
-  const baseUrl  = `/assets/${encPct(setName)}.png`;
-  const mobelUrl = `/assets/${encPct(setName)}_mobel.png`;
+  const baseUrlEncoded  = `/assets/${encPct(setName)}.png`;
+  const baseUrlRaw      = `/assets/${setName}.png`;
+  const mobelUrlEncoded = `/assets/${encPct(setName)}_mobel.png`;
+  const mobelUrlRaw     = `/assets/${setName}_mobel.png`;
+
+  const [resolvedBaseUrl, setResolvedBaseUrl] = useState<string>(baseUrlEncoded);
+  const [resolvedMobelUrl, setResolvedMobelUrl] = useState<string>(mobelUrlEncoded);
+
+  // Try to resolve correct asset URL (encoded vs raw) to ensure decor appears
+  useEffect(() => {
+    const pickFirstReachable = (candidates: string[], cb: (url: string) => void) => {
+      let done = false;
+      for (const url of candidates) {
+        const img = new Image();
+        img.onload = () => { if (!done) { done = true; cb(url); } };
+        img.onerror = () => { /* try next */ };
+        img.src = url;
+      }
+      // Fallback to first candidate after brief delay if none fired onload
+      setTimeout(() => { if (!done) cb(candidates[0]); }, 300);
+    };
+    pickFirstReachable([baseUrlEncoded, baseUrlRaw], setResolvedBaseUrl);
+    pickFirstReachable([mobelUrlEncoded, mobelUrlRaw], setResolvedMobelUrl);
+  }, [baseUrlEncoded, baseUrlRaw, mobelUrlEncoded, mobelUrlRaw]);
 
   // Acrylic
   function firstShapeWithin(root:Element|null){ if(!root) return null; return root.querySelector("path, polygon, rect, ellipse, circle") as any; }
@@ -566,7 +604,9 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
     } else (el.style as any).filter = "none";
   }
   function processNeon(svg:SVGSVGElement, enabled:boolean, intensity:number){
-    const root = (svg.querySelector("#neon, [data-role='neon']") as SVGGElement) || svg;
+    // Only process within explicit neon group to avoid altering decorative elements
+    const root = (svg.querySelector("#neon, [data-role='neon']") as SVGGElement | null);
+    if(!root) return;
     const cand = Array.from(root.querySelectorAll("path, polyline, line, circle, ellipse")).filter(isNeonCandidate) as HTMLElement[];
     cand.forEach(el=>{
       const orig = getStroke(el);
@@ -583,7 +623,8 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
   
   // Technische Ansicht für Neon (originale Farben, keine Effekte)
   function processTechnicalNeon(svg:SVGSVGElement){
-    const root = (svg.querySelector("#neon, [data-role='neon']") as SVGGElement) || svg;
+    const root = (svg.querySelector("#neon, [data-role='neon']") as SVGGElement | null);
+    if(!root) return;
     const cand = Array.from(root.querySelectorAll("path, polyline, line, circle, ellipse")).filter(isNeonCandidate) as HTMLElement[];
     cand.forEach(el=>{
       const originalColor = el.getAttribute("data-neoncolor") || getStroke(el);
@@ -882,128 +923,132 @@ const NeonMockupStage: React.FC<NeonMockupStageProps> = ({
     setModalDrag({dx: 0, dy: 0});
   };
 
+  // Determine what we're showing: SVG (inline or PNG-fallback) vs Mockup
+  const hasInlineSvg = !!currentSvgContent || !!svgRef.current;
+  const hasPngSvgFallback = !!svgImageUrl && !currentSvgContent;
+  const multipleMockups = Array.isArray(customMockupUrls) && customMockupUrls.length > 1;
+  // Whether to show the SVG plane on this slide
+  const showSvgPlane = (
+    !showTechnicalView && (
+      !multipleMockups || !lockSvgToFirstMockupSlide || effectiveMockupIndex === 0
+    )
+  );
+  const hasAnySvg = (hasInlineSvg || hasPngSvgFallback) && !showTechnicalView;
+  // Show mockup overlay on slides where SVG plane is not shown (or there is no SVG at all)
+  const showMockupLayer = !!activeMockupUrl && !showTechnicalView && (!hasAnySvg || !showSvgPlane);
+  const showPngFallbackLayer = hasPngSvgFallback && showSvgPlane && !showMockupLayer;
+  const planeZIndex = (showMockupLayer || showPngFallbackLayer) ? 80 : 60;
+  const furnitureZIndex = (showMockupLayer || showPngFallbackLayer) ? 40 : 90;
+
   return (
     <>
     <div style={S.scene} className={showTechnicalView ? 'bg-gray-200' : ''}>
-      {/* Показываем фоновые элементы только если нет мокапа */}
-      {!activeMockupUrl && (
-        <>
-          {/* Base */}
-          <div style={{
-            ...S.layer, zIndex:0,
-            filter: showTechnicalView ? 'none' : `brightness(${(bgBrightness ?? localBg)})`,
-            backgroundImage: showTechnicalView ? 'none' : `url(${baseUrl})`,
-            backgroundColor: showTechnicalView ? '#4b5563' : 'transparent'
-          }}/>
-          {/* Möbel (oberhalb SVG) */}
-          {!showTechnicalView && <div style={{
-            ...S.layer, zIndex:3,
-            backgroundImage:`url(${mobelUrl})`
-          }}/>}
-          {/* Rain (12%) */}
-          {(setName==="outdoor_30%" && waterproof && !showTechnicalView) && (
-            <div style={S.rain}>
-              {/* CSS Rain Effect */}
-              {Array.from({ length: 120 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="raindrop"
-                  style={{
-                    left: `${Math.random() * 100}%`,
-                    animationDelay: `${Math.random() * 2}s`,
-                    animationDuration: `${0.3 + Math.random() * 0.8}s`
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </>
+  {/* keep DOM mounted; visibility handled below */}
+      {/* Базовый интерьер показываем всегда, чтобы не было черного поля */}
+      {/* Base */}
+      <div style={{
+        ...S.layer, zIndex:0,
+        filter: showTechnicalView ? 'none' : `brightness(${(bgBrightness ?? localBg)})`,
+        // use encoded path with raw fallback
+        backgroundImage: showTechnicalView ? 'none' : `url(${resolvedBaseUrl})`,
+        backgroundColor: showTechnicalView ? '#4b5563' : 'transparent'
+      }}/>
+      {/* Mockup как полноэкранный слой: выше декора, но ниже SVG */}
+      {showMockupLayer && (
+        <div style={{
+          ...S.layer, zIndex:3,
+          backgroundImage: `url(${activeMockupUrl})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          pointerEvents: 'none'
+        }}
+        key={`mock-${effectiveMockupIndex}`}
+        />
       )}
-
-      {/* SVG-Plane - показываем только если нет мокапа */}
-      {!activeMockupUrl && (
-        <div style={S.planeWrap}>
-          <div
-            data-mockup-stage
-            ref={planeRef}
-            style={{
-              ...S.plane,
-              transform: `translate(-50%,-130%) translate(${drag.dx.toFixed(2)}px, ${drag.dy.toFixed(2)}px) scale(1)`,
-              cursor: showTechnicalView ? 'default' : 'grab'
-            }}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            onDoubleClick={openZoomModal}
-          />
+      {/* Möbel (теперь под мокапом и SVG) */}
+      {!showTechnicalView && !showMockupLayer && (
+        <img
+          src={resolvedMobelUrl}
+          alt="decor"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            objectPosition: 'center bottom',
+            zIndex: furnitureZIndex,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
+      {/* Rain (12%) */}
+      {(setName==="outdoor_30%" && waterproof && !showTechnicalView) && (
+        <div style={S.rain}>
+          {/* CSS Rain Effect */}
+          {Array.from({ length: 120 }).map((_, i) => (
+            <div
+              key={i}
+              className="raindrop"
+              style={{
+                left: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 2}s`,
+                animationDuration: `${0.3 + Math.random() * 0.8}s`
+              }}
+            />
+          ))}
         </div>
       )}
+
+      {/** Всегда монтируем SVG plane, а видимость контролируем стилем — так контент не теряется при переключении слайдов */}
+      <div style={{...S.planeWrap, zIndex: planeZIndex, display: showSvgPlane ? 'block' : 'none'}}>
+        <div
+          data-mockup-stage
+          ref={planeRef}
+          style={{
+            ...S.plane,
+            transform: `translate(-50%,-130%) translate(${drag.dx.toFixed(2)}px, ${drag.dy.toFixed(2)}px) scale(1)`,
+            cursor: showTechnicalView ? 'default' : 'grab'
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onDoubleClick={openZoomModal}
+        />
+      </div>
         
-      {/* Monday.com MockUp/SVG Image */}
-      {(activeMockupUrl || svgImageUrl) && !showTechnicalView && (
+  {/* SVG как картинка (fallback) — показываем только если мокапа нет */}
+  {(!activeMockupUrl && svgImageUrl) && !showTechnicalView && (
         <div
           style={{
             position: 'absolute',
-            left: activeMockupUrl ? '0' : '50%', // Мокап на весь контейнер, SVG по центру
-            top: activeMockupUrl ? '0' : '50%',
-            width: activeMockupUrl ? '100%' : `${Math.min(lengthCm * 2, 300)}px`, // Мокап на весь контейнер, SVG фиксированный размер
-            height: activeMockupUrl ? '100%' : `${Math.min(lengthCm * 1, 200)}px`,
-            transform: activeMockupUrl 
-              ? 'none' // Мокап неподвижен
-              : `translate(-50%,-50%) translate(${drag.dx.toFixed(2)}px, ${drag.dy.toFixed(2)}px) scale(1)`, // SVG подвижен
-            backgroundImage: `url(${activeMockupUrl || svgImageUrl})`,
-            backgroundSize: activeMockupUrl ? 'cover' : 'contain', // Мокап заполняет, SVG сохраняет пропорции
+            left: '50%',
+            top: '50%',
+            width: `${Math.min(lengthCm * 2, 300)}px`,
+            height: `${Math.min(lengthCm * 1, 200)}px`,
+            transform: `translate(-50%,-50%) translate(${drag.dx.toFixed(2)}px, ${drag.dy.toFixed(2)}px) scale(1)`,
+            backgroundImage: `url(${svgImageUrl})`,
+            backgroundSize: 'contain',
             backgroundRepeat: 'no-repeat',
             backgroundPosition: 'center',
-            cursor: activeMockupUrl ? 'default' : (isDragging ? 'grabbing' : 'grab'), // Мокап без курсора захвата
-            zIndex: activeMockupUrl ? 0 : 1, // Мокап под всем, SVG над фоном
-            pointerEvents: activeMockupUrl ? 'none' : 'auto', // Мокап нельзя захватывать
+            cursor: isDragging ? 'grabbing' : 'grab',
+            zIndex: 3,
+            pointerEvents: 'auto',
             userSelect: 'none',
             touchAction: 'none',
           }}
-          onPointerDown={activeMockupUrl ? undefined : onMockupPointerDown} // Мокап не реагирует на события
-          onPointerMove={activeMockupUrl ? undefined : onMockupPointerMove}
-          onPointerUp={activeMockupUrl ? undefined : onMockupPointerUp}
-          onPointerCancel={activeMockupUrl ? undefined : onMockupPointerUp}
+          onPointerDown={onMockupPointerDown}
+          onPointerMove={onMockupPointerMove}
+          onPointerUp={onMockupPointerUp}
+          onPointerCancel={onMockupPointerUp}
           onDoubleClick={openZoomModal}
-          title={activeMockupUrl ? "MockUp изображение" : "SVG изображение (перетащите для перемещения)"}
+          title="SVG изображение (перетащите для перемещения)"
         />
       )}
 
       {/* Mockup carousel controls */}
-      {customMockupUrls && customMockupUrls.length > 1 && !showTechnicalView && (
-        <div className="absolute inset-0 z-10 pointer-events-none">
-          <div className="absolute left-2 top-1/2 -translate-y-1/2">
-            <button
-              className="pointer-events-auto bg-black/40 hover:bg-black/60 text-white rounded-full p-2"
-              onClick={() => setMockupIndex(i => (i - 1 + customMockupUrls.length) % customMockupUrls.length)}
-              aria-label="Vorheriges Bild"
-            >
-              ‹
-            </button>
-          </div>
-          <div className="absolute right-2 top-1/2 -translate-y-1/2">
-            <button
-              className="pointer-events-auto bg-black/40 hover:bg-black/60 text-white rounded-full p-2"
-              onClick={() => setMockupIndex(i => (i + 1) % customMockupUrls.length)}
-              aria-label="Nächstes Bild"
-            >
-              ›
-            </button>
-          </div>
-          <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-2">
-            {customMockupUrls.map((_, idx) => (
-              <button
-                key={idx}
-                className={`pointer-events-auto w-2.5 h-2.5 rounded-full ${idx === mockupIndex ? 'bg-white' : 'bg-white/40'}`}
-                onClick={() => setMockupIndex(idx)}
-                aria-label={`Bild ${idx + 1}`}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Внутренние стрелки/точки отключены: управление количеством изображений выполняет внешний UI */}
 
       {/* Technische Ansicht Button */}
       {/* Neon An/Aus Toggle - Floating Button */}

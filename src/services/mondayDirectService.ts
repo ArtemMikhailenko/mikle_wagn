@@ -57,6 +57,33 @@ class MondayDirectService {
     console.log(`📋 Using subtable board ID (mockups): ${this.subtableBoardId}`);
   }
 
+  // Вспомогательная функция: находит субэлементы, точно связанные с проектом
+  // Критерии связи:
+  // - В одном из колонок есть текст строго равный projectId (обычно text_mkqnpgvx)
+  // - Либо JSON value содержит "projectId" как строковое значение
+  // Проверяем только колонки, похожие на ссылочные (text_mkqnpgvx|project|parent|connect|link|pulse_id)
+  private findLinkedSubtableItems(items: MondayItem[], projectId: string): MondayItem[] {
+    const linkIdHints = ['text_mkqnpgvx', 'project', 'parent', 'connect', 'link', 'pulse_id'];
+    const isLinked = (it: MondayItem) => it.column_values?.some(cv => {
+      const id = cv.id || '';
+      const text = (cv.text || '').trim();
+      const value = cv.value || '';
+      const likelyLinkField = linkIdHints.some(h => id.includes(h));
+      if (!likelyLinkField) return false;
+      if (text === projectId) return true;
+      // JSON строки из Monday содержат кавычки вокруг значения
+      if (value && value.includes(`"${projectId}"`)) return true;
+      return false;
+    });
+    const linked = items.filter(isLinked);
+    if (linked.length) {
+      console.log(`🔗 Strictly linked subitems found: ${linked.length}`, linked.map(i => `${i.id}: ${i.name}`));
+    } else {
+      console.log('⚠️ No strictly linked subitems by exact link field');
+    }
+    return linked;
+  }
+
   // Получить все проекты с Monday.com
   async getAllProjects(): Promise<NeonDesign[]> {
     try {
@@ -978,6 +1005,134 @@ class MondayDirectService {
   async getMockupListForProject(projectId: string): Promise<string[]> {
     try {
       console.log(`🔄 Fetching mockup LIST for project ${projectId} from subtable...`);
+      // СНАЧАЛА: пробуем получить мокапы напрямую из subitems родительского айтема в основном борде
+      try {
+        const queryMain = `
+          query {
+            boards(ids: [${this.mainBoardId}]) {
+              items_page(limit: 100) {
+                items {
+                  id
+                  name
+                  subitems {
+                    id
+                    name
+                    column_values { id text value }
+                  }
+                }
+              }
+            }
+          }
+        `;
+        const respMain = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': this.apiToken },
+          body: JSON.stringify({ query: queryMain })
+        });
+        if (respMain.ok) {
+          const dataMain: MondayResponse = await respMain.json();
+          const itemsMain = dataMain?.data?.boards?.[0]?.items_page?.items || [];
+          const parent = itemsMain.find((it: any) => it.id === projectId);
+          if (parent && Array.isArray((parent as any).subitems) && (parent as any).subitems.length) {
+            console.log(`📦 Using parent subitems for mockup list: ${(parent as any).subitems.length}`);
+            // Для каждой сабстроки выбираем ОДНО изображение по приоритету (для фона карусели нужны растровые изображения):
+            // 1) MockUp (file_mkq71vjr)
+            // 2) Fallback: Logo (file_mkq796t3)
+            // 3) Fallback: любой file-* столбец с растровой картинкой (png/jpg/webp)
+            const mockupField = 'file_mkq71vjr';
+            const logoField = 'file_mkq796t3';
+            const urlsFromSubitems: string[] = [];
+            // Use a percent-encoded path for the placeholder to ensure it resolves correctly
+            const defaultMockupUrl = '/assets/ab_100cm_50%25.png'; // fallback raster if only SVG exists
+            const orderedSubs = [...(parent as any).subitems].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+
+            // Helper: robust raster detector that works for absolute and relative URLs
+            const isRasterUrl = (u: string): boolean => {
+              try {
+                // If absolute URL
+                const path = new URL(u, typeof window !== 'undefined' ? window.location.href : 'http://localhost').pathname.toLowerCase();
+                return /(\.png|\.jpe?g|\.webp)$/.test(path);
+              } catch {
+                // Fall back to plain string check
+                const s = (u || '').toLowerCase();
+                return s.endsWith('.png') || s.endsWith('.jpg') || s.endsWith('.jpeg') || s.endsWith('.webp');
+              }
+            };
+            for (const sub of orderedSubs) {
+              const cols = (sub.column_values || []) as Array<{id: string; text?: string; value?: string}>;
+              const pickFromColumn = async (id: string): Promise<string | null> => {
+                const col = cols.find(c => c.id === id && c.value);
+                if (!col || !col.value) return null;
+                try {
+                  const fileData = JSON.parse(col.value);
+                  const files = Array.isArray(fileData?.files) ? fileData.files : [];
+                  for (const f of files) {
+                    const urlCandidate = f.url || null;
+                    const publicUrl = f.assetId ? await this.getPublicAssetUrl(f.assetId) : urlCandidate;
+                    if (!publicUrl) continue;
+                    try {
+                      // Carousel background must be raster only
+                      if (isRasterUrl(publicUrl)) return publicUrl;
+                    } catch { /* ignore URL parse errors */ }
+                  }
+                } catch { /* ignore parse errors */ }
+                return null;
+              };
+
+              let picked: string | null = null;
+              // 1) MockUp
+              picked = await pickFromColumn(mockupField);
+              // 2) Logo
+              if (!picked) picked = await pickFromColumn(logoField);
+              // 3) Любой file-* столбец c растровой картинкой (png/jpg/webp)
+              if (!picked) {
+                for (const col of cols) {
+                  if (!col.value) continue;
+                  if (!/(^|_)file(_|$)/.test(col.id)) continue;
+                  try {
+                    const fileData = JSON.parse(col.value);
+                    const files = Array.isArray(fileData?.files) ? fileData.files : [];
+                    for (const f of files) {
+                      const urlCandidate = f.url || null;
+                      const publicUrl = f.assetId ? await this.getPublicAssetUrl(f.assetId) : urlCandidate;
+                      if (!publicUrl) continue;
+                      // Only accept raster
+                      if (isRasterUrl(publicUrl)) { picked = publicUrl; break; }
+                    }
+                    if (picked) break;
+                  } catch { /* ignore parse errors */ }
+                }
+              }
+
+              // 4) Если растрового нет, но есть SVG — добавляем фоновый плейсхолдер, чтобы точка не пропадала
+              if (!picked) {
+                const hasSvgOnly = cols.some(c => c.id === 'file_mkv5y54w' && c.value && (() => {
+                  try {
+                    const fd = JSON.parse(c.value);
+                    return Array.isArray(fd?.files) && fd.files.length > 0;
+                  } catch { return false; }
+                })());
+                if (hasSvgOnly) {
+                  console.log('ℹ️ Subitem has only SVG; using default raster placeholder for carousel');
+                  picked = defaultMockupUrl;
+                }
+              }
+
+              if (picked) urlsFromSubitems.push(picked);
+            }
+            const uniqueParent = Array.from(new Set(urlsFromSubitems))
+              .filter(u => isRasterUrl(u));
+            console.log(`✅ Found ${uniqueParent.length} mockup images from parent subitems`);
+            if (uniqueParent.length) return uniqueParent.slice(0, 10);
+          } else {
+            console.log('ℹ️ No subitems on parent item or parent not found in main board');
+          }
+        } else {
+          console.warn('⚠️ Could not query main board for parent subitems, status:', respMain.status);
+        }
+      } catch (e) {
+        console.warn('⚠️ Error while trying parent subitems approach for mockup list:', e);
+      }
 
       const query = `
         query {
@@ -1007,28 +1162,62 @@ class MondayDirectService {
       const items = data?.data?.boards?.[0]?.items_page?.items || [];
 
       console.log(`🧮 Subtable items for mockup list: ${items.length}`);
-      // Собираем кандидатов: точный ID, частичный/короткий ID, по имени/полям
-      const partial = projectId.slice(0, 8);
-      const short = projectId.slice(0, 6);
-      const candidates = items.filter((it: any) =>
-        it.id === projectId ||
-        it.id?.startsWith(partial) || it.id?.startsWith(short) ||
-        it.name?.includes(projectId) || it.name?.includes(partial) || it.name?.includes(short) ||
-        it.column_values?.some((cv: any) => (cv.text && (cv.text.includes(projectId) || cv.text.includes(partial) || cv.text.includes(short))) || (cv.value && cv.value.includes(projectId)))
-      );
+      // 1) Строгая связь по специальному полю (например text_mkqnpgvx)
+      let candidates: MondayItem[] = this.findLinkedSubtableItems(items as any, projectId);
 
-      console.log(`🧲 Mockup list candidates: ${candidates.length}`, candidates.map((c:any)=>`${c.id}: ${c.name}`));
+      // 2) Fallback: точное совпадение ID (редко)
+      if (!candidates.length) {
+        const exact = items.find((it: any) => it.id === projectId);
+        if (exact) candidates = [exact];
+      }
+
+      // 3) Fallback №2: по названию И одновременно наличию точного projectId в любом поле
+      if (!candidates.length) {
+        candidates = items.filter((it: any) => it.name?.includes(projectId) && it.column_values?.some((cv: any) => (cv.text || '').trim() === projectId));
+      }
+
+      // 4) Fallback №3: безопасная эвристика по префиксу ID (как уже используем в других методах)
+      if (!candidates.length) {
+        const partial = projectId.slice(0, 8);
+        const short = projectId.slice(0, 6);
+        const byIdPrefix = items.filter((it: any) => it.id?.startsWith(partial) || it.id?.startsWith(short));
+        if (byIdPrefix.length) {
+          console.log(`🧷 Prefix-based candidates by ID: ${byIdPrefix.length}`);
+          candidates = byIdPrefix as MondayItem[];
+        }
+      }
+
+      // 5) Fallback №4: по полю pulse_id_* если оно содержит подпункт с близким ID
+      if (!candidates.length) {
+        const partial = projectId.slice(0, 8);
+        const short = projectId.slice(0, 6);
+        const byPulse = items.filter((it: any) =>
+          it.column_values?.some((cv: any) =>
+            (cv.id || '').includes('pulse_id') && ((cv.text || '').startsWith(partial) || (cv.text || '').startsWith(short))
+          )
+        );
+        if (byPulse.length) {
+          console.log(`🧷 Prefix-based candidates by pulse_id: ${byPulse.length}`);
+          candidates = byPulse as MondayItem[];
+        }
+      }
+
+      console.log(`🧲 Mockup list strictly-linked candidates: ${candidates.length}`, candidates.map((c:any)=>`${c.id}: ${c.name}`));
       if (candidates.length === 0) {
-        console.log('⚠️ No subtable candidates for mockup list');
+        console.log('⚠️ No strictly linked subtable candidates for mockup list');
         return [];
       }
 
-      const possibleFileFields = ['file_mkq71vjr', 'file_mkq6eahq', 'file_mkq6q0v2', 'file', 'mockup'];
+      // Разрешаем только целевые MockUp-поля, чтобы не собирать чужие вложения
+      const possibleFileFields = ['file_mkq71vjr'];
       const urls: string[] = [];
 
-      for (const item of candidates) {
+      // Упорядочим кандидатов по имени (Logo 1, Logo 2, ...)
+      const ordered = [...candidates].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+      for (const item of ordered) {
         for (const col of item.column_values) {
-          const isFile = col.id.includes('file') || possibleFileFields.includes(col.id);
+          const isFile = possibleFileFields.includes(col.id);
           if (!isFile || !col.value) continue;
           try {
             const fileData = JSON.parse(col.value);
@@ -1046,9 +1235,17 @@ class MondayDirectService {
         }
       }
 
-      // Уникализируем и вернем максимум 5 для UI
-      const unique = Array.from(new Set(urls));
-      console.log(`✅ Found ${unique.length} mockup images for project`);
+      // Оставляем только реальные изображения и убираем дубли
+      const unique = Array.from(new Set(urls)).filter(u => {
+        try {
+          const path = new URL(u, typeof window !== 'undefined' ? window.location.href : 'http://localhost').pathname.toLowerCase();
+          return /(\.png|\.jpe?g|\.webp)$/.test(path);
+        } catch {
+          const s = (u || '').toLowerCase();
+          return s.endsWith('.png') || s.endsWith('.jpg') || s.endsWith('.jpeg') || s.endsWith('.webp');
+        }
+      });
+      console.log(`✅ Found ${unique.length} strictly-linked mockup images for project`);
       return unique.slice(0, 10);
     } catch (e) {
       console.error('❌ Error fetching mockup list:', e);
